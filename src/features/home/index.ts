@@ -1,0 +1,7 @@
+export * from "./components/hero-section"
+export * from "./components/trust-reassurance"
+export * from "./components/how-it-works"
+export * from "./components/popular-categories"
+export * from "./components/why-choose-veyra"
+export * from "./components/locations-section"
+export * from "./components/final-cta"

@@ -1,6 +1,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { StatusBadge } from "@/components/common/status-badge"
+import { VeyraLogo } from "@/components/brand/veyra-logo"
 
 export interface FooterLink {
   label: string
@@ -62,13 +63,11 @@ export function CustomerFooter() {
         {/* Brand & Value Proposition Row */}
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-5 pb-12 border-b">
           <div className="lg:col-span-2 flex flex-col gap-4">
-            <Link href="/" className="flex items-center gap-2.5 group outline-none">
-              <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-base tracking-wider">
-                V
-              </div>
-              <span className="font-heading text-xl font-bold tracking-tight text-foreground">
-                VEYRA
-              </span>
+            <Link href="/" className="flex items-center outline-none group">
+              <VeyraLogo
+                iconSize="h-8"
+                className="text-xl transition-transform group-hover:scale-105"
+              />
             </Link>
             <p className="max-w-sm text-sm text-muted-foreground leading-relaxed">
               Veyra serves customers in Butuan City, Agusan del Norte. Instant reservation, guaranteed models, and prompt local handover.

@@ -22,6 +22,7 @@ import {
   RiShieldCheckLine,
 } from "@remixicon/react"
 import { cn } from "@/lib/utils"
+import { VeyraLogo } from "@/components/brand/veyra-logo"
 
 export interface NavItem {
   label: string
@@ -60,18 +61,11 @@ export function CustomerMobileNav() {
         <div className="flex flex-col">
           <SheetHeader className="p-6 pb-4 border-b text-left">
             <div className="flex items-center gap-2.5">
-              <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-lg tracking-wider">
-                V
-              </div>
-              <div className="flex flex-col">
-                <SheetTitle className="text-xl font-bold tracking-tight">
-                  VEYRA
-                </SheetTitle>
-                <SheetDescription className="text-xs">
-                  Premium Vehicle Mobility
-                </SheetDescription>
-              </div>
+              <VeyraLogo iconSize="h-9" className="text-xl" />
             </div>
+            <SheetDescription className="text-xs pt-1">
+              Local Car Rental • Butuan City
+            </SheetDescription>
           </SheetHeader>
 
           <nav className="flex flex-col p-4 gap-1" aria-label="Mobile Navigation">

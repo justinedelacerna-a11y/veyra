@@ -14,6 +14,7 @@ import {
   RiArrowRightLine,
 } from "@remixicon/react"
 import { cn } from "@/lib/utils"
+import { VeyraLogo } from "@/components/brand/veyra-logo"
 
 export interface CustomerHeaderProps {
   className?: string
@@ -44,13 +45,11 @@ export function CustomerHeader({ className }: CustomerHeaderProps) {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Brand & Left Navigation */}
         <div className="flex items-center gap-8">
-          <Link href="/" className="flex items-center gap-2.5 group outline-none">
-            <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-base tracking-wider transition-transform group-hover:scale-105">
-              V
-            </div>
-            <span className="font-heading text-xl font-bold tracking-tight text-foreground">
-              VEYRA
-            </span>
+          <Link href="/" className="flex items-center outline-none group">
+            <VeyraLogo
+              iconSize="h-8"
+              className="text-xl transition-transform group-hover:scale-105"
+            />
           </Link>
 
           {/* Desktop Navigation */}

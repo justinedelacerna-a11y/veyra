@@ -22,6 +22,7 @@ import {
   RiNotification3Line,
 } from "@remixicon/react"
 import { cn } from "@/lib/utils"
+import { VeyraLogo } from "@/components/brand/veyra-logo"
 
 export interface AdminNavItem {
   label: string
@@ -100,18 +101,16 @@ export function AdminSidebar({
             className="flex items-center gap-2.5 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring rounded-md"
             onClick={onItemClick}
           >
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground font-bold text-base">
-              V
-            </div>
+            <VeyraLogo
+              variant={isCollapsed ? "icon" : "full"}
+              iconSize="h-8"
+              inverted
+              className="text-sm"
+            />
             {!isCollapsed && (
-              <div className="flex flex-col">
-                <span className="font-heading text-sm font-bold tracking-tight text-sidebar-foreground">
-                  VEYRA
-                </span>
-                <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
-                  Operations Hub
-                </span>
-              </div>
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+                Operations Hub
+              </span>
             )}
           </Link>
 

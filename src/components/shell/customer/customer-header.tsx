@@ -15,6 +15,7 @@ import {
 } from "@remixicon/react"
 import { cn } from "@/lib/utils"
 import { VeyraLogo } from "@/components/brand/veyra-logo"
+import { ThemeToggle } from "@/components/common/theme-toggle"
 
 export interface CustomerHeaderProps {
   className?: string
@@ -136,6 +137,9 @@ export function CustomerHeader({ className }: CustomerHeaderProps) {
               <RiArrowRightLine className="size-3.5" data-icon="inline-end" />
             </Button>
           </Link>
+
+          {/* Theme Toggle (Accessible in both mobile & desktop navbar) */}
+          <ThemeToggle variant="dropdown" />
 
           {/* Mobile Navigation Drawer */}
           <CustomerMobileNav />

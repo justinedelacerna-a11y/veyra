@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Inter } from "next/font/google"
 import "./globals.css"
 import { ClerkProvider } from "@clerk/nextjs"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { ThemeProvider } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
 
 const geistHeading = Geist({ subsets: ["latin"], variable: "--font-heading" })
@@ -38,6 +39,7 @@ export default function RootLayout({
     <ClerkProvider>
       <html
         lang="en"
+        suppressHydrationWarning
         className={cn(
           "h-full antialiased font-sans",
           geistSans.variable,
@@ -46,8 +48,15 @@ export default function RootLayout({
           geistHeading.variable
         )}
       >
-        <body className="min-h-full flex flex-col bg-background text-foreground">
-          <TooltipProvider>{children}</TooltipProvider>
+        <body className="min-h-full flex flex-col bg-background text-foreground transition-colors duration-150">
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <TooltipProvider>{children}</TooltipProvider>
+          </ThemeProvider>
         </body>
       </html>
     </ClerkProvider>

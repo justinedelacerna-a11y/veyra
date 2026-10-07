@@ -22,6 +22,7 @@ import {
   RiShieldCheckLine,
 } from "@remixicon/react"
 import { cn } from "@/lib/utils"
+import { ThemeToggle } from "@/components/common/theme-toggle"
 
 export interface AdminHeaderProps {
   onOpenMobileNav: () => void
@@ -109,6 +110,9 @@ export function AdminHeader({ onOpenMobileNav, className }: AdminHeaderProps) {
           <RiNotificationLine className="size-4" />
           <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary" />
         </Button>
+
+        {/* Theme Switcher */}
+        <ThemeToggle variant="dropdown" />
 
         {/* Staff User Avatar & Menu */}
         <div className="flex items-center">

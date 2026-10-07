@@ -23,6 +23,7 @@ import {
 } from "@remixicon/react"
 import { cn } from "@/lib/utils"
 import { VeyraLogo } from "@/components/brand/veyra-logo"
+import { ThemeToggle } from "@/components/common/theme-toggle"
 
 export interface NavItem {
   label: string
@@ -141,6 +142,13 @@ export function CustomerMobileNav() {
                 </Button>
               </Link>
             </Show>
+          </div>
+
+          <div className="flex flex-col gap-1.5 pt-1">
+            <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+              Theme
+            </span>
+            <ThemeToggle variant="segmented" className="w-full" />
           </div>
 
           <div className="text-[11px] text-muted-foreground text-center">

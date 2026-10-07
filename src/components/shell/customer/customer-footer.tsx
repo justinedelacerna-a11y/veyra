@@ -2,6 +2,7 @@ import * as React from "react"
 import Link from "next/link"
 import { StatusBadge } from "@/components/common/status-badge"
 import { VeyraLogo } from "@/components/brand/veyra-logo"
+import { ThemeToggle } from "@/components/common/theme-toggle"
 
 export interface FooterLink {
   label: string
@@ -108,7 +109,7 @@ export function CustomerFooter() {
             <span>&copy; {new Date().getFullYear()} Veyra Mobility Technologies • Butuan City, Agusan del Norte, Philippines. All rights reserved.</span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-6">
+          <div className="flex flex-wrap items-center gap-4 sm:gap-6">
             <Link href="/legal/privacy" className="hover:text-foreground transition-colors">
               Privacy
             </Link>
@@ -121,6 +122,9 @@ export function CustomerFooter() {
             <Link href="/admin" className="text-primary hover:underline font-medium">
               Staff Portal
             </Link>
+            <div className="flex items-center gap-2 pl-2 sm:border-l sm:border-border/60">
+              <ThemeToggle variant="segmented" />
+            </div>
           </div>
         </div>
       </div>

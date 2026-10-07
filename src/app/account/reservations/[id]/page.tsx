@@ -1,7 +1,7 @@
 import * as React from "react"
 import { Metadata } from "next"
 import { notFound } from "next/navigation"
-import { getMockReservationById } from "@/lib/mock/reservations"
+import { getCustomerReservationById } from "@/features/account/server"
 import { ReservationDetailView } from "@/features/account/components/reservation-detail-view"
 
 interface ReservationDetailPageProps {
@@ -10,7 +10,7 @@ interface ReservationDetailPageProps {
 
 export async function generateMetadata({ params }: ReservationDetailPageProps): Promise<Metadata> {
   const { id } = await params
-  const reservation = getMockReservationById(id)
+  const reservation = await getCustomerReservationById(id)
 
   if (!reservation) {
     return {
@@ -30,7 +30,7 @@ export async function generateMetadata({ params }: ReservationDetailPageProps): 
 
 export default async function ReservationDetailPage({ params }: ReservationDetailPageProps) {
   const { id } = await params
-  const reservation = getMockReservationById(id)
+  const reservation = await getCustomerReservationById(id)
 
   if (!reservation) {
     notFound()
@@ -38,3 +38,4 @@ export default async function ReservationDetailPage({ params }: ReservationDetai
 
   return <ReservationDetailView reservation={reservation} />
 }
+

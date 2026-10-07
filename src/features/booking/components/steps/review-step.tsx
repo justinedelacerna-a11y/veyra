@@ -4,7 +4,6 @@ import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useBooking } from "../../context/booking-context"
-import { MOCK_BOOKING_EXTRAS } from "../../data/extras"
 import { Button } from "@/components/ui/button"
 import { StatusBadge } from "@/components/common/status-badge"
 import {
@@ -29,6 +28,7 @@ export function ReviewStep() {
     rentalDays,
     draft,
     pricing,
+    availableExtras,
   } = useBooking()
 
   // Format dates for display
@@ -48,9 +48,9 @@ export function ReviewStep() {
 
   const selectedExtraObjects = React.useMemo(() => {
     return draft.selectedExtras
-      .map((id) => MOCK_BOOKING_EXTRAS.find((e) => e.id === id))
+      .map((id) => (availableExtras || []).find((e) => e.id === id))
       .filter(Boolean)
-  }, [draft.selectedExtras])
+  }, [draft.selectedExtras, availableExtras])
 
   return (
     <div className="space-y-6">

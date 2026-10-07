@@ -1,6 +1,6 @@
 import * as React from "react"
 import Link from "next/link"
-import { MOCK_CATEGORIES } from "@/lib/mock/categories"
+import { getVehicleCatalog } from "@/features/vehicles/server"
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card"
 import {
   RiCarLine,
@@ -9,6 +9,7 @@ import {
   RiBusLine,
   RiArrowRightLine,
 } from "@remixicon/react"
+import type { VehicleCategory } from "@/types"
 
 const categoryIcons = {
   sedan: RiCarLine,
@@ -18,7 +19,69 @@ const categoryIcons = {
   luxury: RiCarLine,
 }
 
-export function PopularCategories() {
+const categoryMeta: Array<{
+  id: VehicleCategory
+  name: string
+  tagline: string
+  description: string
+  defaultStartingPrice: number
+}> = [
+  {
+    id: "sedan",
+    name: "Executive Sedans",
+    tagline: "Efficiency & Refinement",
+    description: "Smooth handling and executive interior comfort tailored for business commutes and highway cruising.",
+    defaultStartingPrice: 2800,
+  },
+  {
+    id: "suv",
+    name: "Luxury SUVs",
+    tagline: "Capability & Elevated View",
+    description: "Commanding seating position, all-terrain confidence, and ample luggage volume for family road trips.",
+    defaultStartingPrice: 4500,
+  },
+  {
+    id: "electric",
+    name: "Electric & Hybrids",
+    tagline: "Instant Torque & Zero Tailpipe",
+    description: "Cutting-edge electric performance pre-charged to at least 85% with complimentary airport charging access.",
+    defaultStartingPrice: 5200,
+  },
+  {
+    id: "van",
+    name: "Group & Travel Vans",
+    tagline: "Spacious Multi-Passenger",
+    description: "Premium seating for 7 to 10 travelers with dual climate controls and deep cargo capacity.",
+    defaultStartingPrice: 4200,
+  },
+  {
+    id: "luxury",
+    name: "Prestige & Luxury",
+    tagline: "Uncompromised Distinction",
+    description: "World-class craftsmanship, whisper-quiet cabins, and flagship touring performance.",
+    defaultStartingPrice: 5800,
+  },
+]
+
+export async function PopularCategories() {
+  const { data: allVehicles } = await getVehicleCatalog()
+  const vehicles = allVehicles || []
+
+  const categories = categoryMeta.map((cat) => {
+    const matching = vehicles.filter((v) => v.category === cat.id)
+    const count = matching.length
+    const minPrice =
+      count > 0
+        ? Math.min(...matching.map((v) => v.dailyRate))
+        : cat.defaultStartingPrice
+
+    return {
+      ...cat,
+      vehicleCount: count,
+      startingPrice: minPrice,
+    }
+  })
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -41,7 +104,7 @@ export function PopularCategories() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5">
-        {MOCK_CATEGORIES.map((cat) => {
+        {categories.map((cat) => {
           const Icon = categoryIcons[cat.id] ?? RiCarLine
 
           return (
@@ -97,3 +160,4 @@ export function PopularCategories() {
     </div>
   )
 }
+

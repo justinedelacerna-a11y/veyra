@@ -1,8 +1,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { Metadata } from "next"
-import { MOCK_CUSTOMER_PROFILE } from "@/lib/mock/customer"
-import { getUpcomingReservation, getMockReservations } from "@/lib/mock/reservations"
+import { getCustomerProfile, getCustomerReservations } from "@/features/account/server"
 import { UpcomingHeroCard } from "@/features/account/components/upcoming-hero-card"
 import { Button } from "@/components/ui/button"
 import { StatusBadge } from "@/components/common/status-badge"
@@ -21,12 +20,23 @@ export const metadata: Metadata = {
   description: "Customer account overview, active reservations, and quick access.",
 }
 
-export default function AccountOverviewPage() {
-  const upcomingReservation = getUpcomingReservation()
-  const allReservations = getMockReservations()
+export default async function AccountOverviewPage() {
+  const [profile, allReservations] = await Promise.all([
+    getCustomerProfile(),
+    getCustomerReservations(),
+  ])
+
+  const upcomingReservation =
+    allReservations.find((r) => r.status === "active") ||
+    allReservations.find((r) => r.status === "upcoming")
+
   const pastReservations = allReservations.filter(
     (r) => r.status === "completed" || r.status === "cancelled"
   )
+
+  const customerFirstName = profile?.firstName || "Member"
+  const membershipNumber = profile?.membershipNumber || "VYR-MEMBER"
+  const tier = profile?.tier || "Veyra Circle • Standard Tier"
 
   return (
     <div className="space-y-8">
@@ -40,11 +50,11 @@ export default function AccountOverviewPage() {
               </span>
               <span className="text-muted-foreground">•</span>
               <span className="text-xs text-muted-foreground">
-                Member ID: {MOCK_CUSTOMER_PROFILE.membershipNumber}
+                Member ID: {membershipNumber}
               </span>
             </div>
             <h1 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-              Welcome back, {MOCK_CUSTOMER_PROFILE.firstName}
+              Welcome back, {customerFirstName}
             </h1>
             <p className="text-sm text-muted-foreground">
               Manage your current vehicle itinerary, review rental documentation, and view trip receipts.
@@ -55,7 +65,7 @@ export default function AccountOverviewPage() {
             <span className="text-xs text-muted-foreground">Membership Status</span>
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border border-emerald-500/20">
               <RiCheckDoubleLine className="size-3.5" />
-              <span>{MOCK_CUSTOMER_PROFILE.tier}</span>
+              <span>{tier}</span>
             </span>
           </div>
         </div>

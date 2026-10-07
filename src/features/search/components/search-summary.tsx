@@ -1,14 +1,13 @@
 "use client"
 
 import * as React from "react"
-import { MOCK_LOCATIONS } from "@/lib/mock/locations"
+import type { LocationHub } from "@/types"
 import { RentalSearch } from "./rental-search"
 import { Button } from "@/components/ui/button"
 import {
   RiMapPinLine,
   RiCalendarLine,
   RiEditLine,
-  RiArrowRightLine,
   RiCloseLine,
 } from "@remixicon/react"
 
@@ -19,6 +18,7 @@ export interface SearchSummaryProps {
   fromTime?: string
   to?: string
   toTime?: string
+  locations?: LocationHub[]
 }
 
 export function SearchSummary({
@@ -28,13 +28,47 @@ export function SearchSummary({
   fromTime,
   to,
   toTime,
+  locations,
 }: SearchSummaryProps) {
   const [isEditing, setIsEditing] = React.useState(false)
+  const [internalLocations, setInternalLocations] = React.useState<LocationHub[]>(locations || [])
+
+  React.useEffect(() => {
+    if (locations && locations.length > 0) return
+
+    let cancelled = false
+    fetch("/api/locations")
+      .then((res) => res.json())
+      .then((data: { locations?: LocationHub[] }) => {
+        if (!cancelled && data.locations && data.locations.length > 0) {
+          setInternalLocations(data.locations)
+        }
+      })
+      .catch((err) => {
+        console.error("[search-summary] error fetching locations:", err)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [locations])
+
+  const activeLocations = locations && locations.length > 0 ? locations : internalLocations
 
   const pickupHub =
-    MOCK_LOCATIONS.find((loc) => loc.id === pickupId) || MOCK_LOCATIONS[0]
+    activeLocations.find((loc) => loc.id === pickupId) || activeLocations[0] || {
+      id: pickupId || "10c00000-0000-0000-0000-000000000001",
+      name: "Barangay Libertad Hub",
+      barangay: "Libertad",
+      city: "Butuan City",
+      type: "City Center" as const,
+      address: "National Highway, Brgy. Libertad, Butuan City, Agusan del Norte",
+      operatingHours: "08:00 - 20:00",
+      pickupAvailable: true,
+    }
+
   const returnHub =
-    MOCK_LOCATIONS.find((loc) => loc.id === returnLocId) || pickupHub
+    activeLocations.find((loc) => loc.id === returnLocId) || pickupHub
 
   // Calculate rental duration in days
   const rentalDays = React.useMemo(() => {
@@ -72,17 +106,18 @@ export function SearchSummary({
             </div>
             <div>
               <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider block">
-                Pickup & Return
+                {returnHub.id !== pickupHub.id ? "Pickup Hub" : "Pickup & Return"}
               </span>
               <div className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                <span>{pickupHub.city} ({pickupHub.name.split(" ")[0]})</span>
-                {returnHub.id !== pickupHub.id && (
-                  <>
-                    <RiArrowRightLine className="size-3.5 text-muted-foreground" />
-                    <span>{returnHub.city} ({returnHub.name.split(" ")[0]})</span>
-                  </>
-                )}
+                <span>
+                  {pickupHub.barangay ? `Barangay ${pickupHub.barangay}` : pickupHub.name}, Butuan City
+                </span>
               </div>
+              {returnHub.id !== pickupHub.id && (
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  Return: {returnHub.barangay ? `Barangay ${returnHub.barangay}` : returnHub.name}, Butuan City
+                </div>
+              )}
             </div>
           </div>
 
@@ -138,7 +173,7 @@ export function SearchSummary({
               Update Rental Itinerary
             </h4>
           </div>
-          <RentalSearch initialLocationId={pickupHub.id} />
+          <RentalSearch locations={activeLocations} initialLocationId={pickupHub.id} />
         </div>
       )}
     </div>

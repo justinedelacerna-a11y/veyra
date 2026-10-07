@@ -107,6 +107,12 @@ SECURITY DEFINER
 SET search_path = public, veyra_private
 AS $$
 BEGIN
+  -- If executed by service_role or database superuser, allow system sync
+  IF current_setting('request.jwt.claim.role', true) = 'service_role' 
+     OR current_user IN ('postgres', 'service_role') THEN
+    RETURN NEW;
+  END IF;
+
   -- If not staff/admin, customer cannot alter system/protected columns
   IF veyra_private.current_staff_role() IS NULL THEN
     NEW.user_id             := OLD.user_id;
@@ -133,6 +139,13 @@ SECURITY DEFINER
 SET search_path = public, veyra_private
 AS $$
 BEGIN
+  -- If executed by service_role or database superuser (server payment processing, webhooks, reaper cron),
+  -- allow updates to operational/financial fields.
+  IF current_setting('request.jwt.claim.role', true) = 'service_role' 
+     OR current_user IN ('postgres', 'service_role') THEN
+    RETURN NEW;
+  END IF;
+
   -- If non-staff user is updating (e.g. customer self-cancellation),
   -- lock down financial, vehicle assignment, and operational fields.
   IF veyra_private.current_staff_role() IS NULL THEN

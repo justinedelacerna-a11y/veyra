@@ -12,12 +12,12 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
+import { Show, UserButton, SignInButton, SignUpButton } from "@clerk/nextjs"
 import {
   RiMenuLine,
   RiCarLine,
   RiMapPinLine,
   RiCustomerServiceLine,
-  RiUserLine,
   RiArrowRightLine,
   RiShieldCheckLine,
 } from "@remixicon/react"
@@ -114,12 +114,39 @@ export function CustomerMobileNav() {
               </Button>
             </Link>
 
-            <Link href="/account" onClick={() => setOpen(false)}>
-              <Button variant="outline" className="w-full justify-start gap-2.5">
-                <RiUserLine className="size-4 text-muted-foreground" data-icon="inline-start" />
-                <span>My Account</span>
-              </Button>
-            </Link>
+            <Show when="signed-out">
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <SignInButton>
+                  <Button variant="outline" className="w-full justify-center" onClick={() => setOpen(false)}>
+                    Log In
+                  </Button>
+                </SignInButton>
+                <SignUpButton>
+                  <Button className="w-full justify-center" onClick={() => setOpen(false)}>
+                    Sign Up
+                  </Button>
+                </SignUpButton>
+              </div>
+            </Show>
+
+            <Show when="signed-in">
+              <div className="flex items-center justify-between p-3 rounded-xl bg-card border">
+                <div className="flex items-center gap-3">
+                  <UserButton showName />
+                </div>
+                <Link href="/account" onClick={() => setOpen(false)}>
+                  <Button variant="ghost" size="sm" className="text-xs">
+                    Account
+                  </Button>
+                </Link>
+              </div>
+              <Link href="/admin" onClick={() => setOpen(false)}>
+                <Button variant="outline" size="sm" className="w-full text-xs gap-1.5 justify-center">
+                  <span>Operations Hub</span>
+                  <RiArrowRightLine className="size-3" />
+                </Button>
+              </Link>
+            </Show>
           </div>
 
           <div className="text-[11px] text-muted-foreground text-center">

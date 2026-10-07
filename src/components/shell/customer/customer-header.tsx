@@ -4,16 +4,8 @@ import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu"
 import { CustomerMobileNav, customerNavItems } from "./customer-mobile-nav"
+import { Show, UserButton, SignInButton, SignUpButton } from "@clerk/nextjs"
 import {
   RiUserLine,
   RiCalendarLine,
@@ -87,51 +79,56 @@ export function CustomerHeader({ className }: CustomerHeaderProps) {
         </div>
 
         {/* Right Actions & CTAs */}
-        <div className="flex items-center gap-3">
-          {/* Mock Account Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="hidden sm:inline-flex gap-2"
-                  aria-label="Account options"
-                />
-              }
-            >
-              <RiUserLine className="size-4 text-muted-foreground" data-icon="inline-start" />
-              <span>Account</span>
-            </DropdownMenuTrigger>
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Unauthenticated: Log In & Sign Up buttons */}
+          <Show when="signed-out">
+            <SignInButton>
+              <Button variant="ghost" size="sm" className="hidden sm:inline-flex">
+                Log In
+              </Button>
+            </SignInButton>
+            <SignUpButton>
+              <Button variant="outline" size="sm" className="hidden sm:inline-flex">
+                Sign Up
+              </Button>
+            </SignUpButton>
+          </Show>
 
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuGroup>
-                <DropdownMenuLabel>Guest Account (Mock)</DropdownMenuLabel>
-                <DropdownMenuItem render={<Link href="/account" />}>
-                  <RiUserLine className="size-4 mr-2" />
-                  <span>Account Overview</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem render={<Link href="/account/reservations" />}>
-                  <RiCalendarLine className="size-4 mr-2" />
-                  <span>My Reservations</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem render={<Link href="/account/saved" />}>
-                  <RiHeartLine className="size-4 mr-2" />
-                  <span>Saved Vehicles</span>
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-
-              <DropdownMenuSeparator />
-
-              <DropdownMenuGroup>
-                <DropdownMenuLabel>Administration</DropdownMenuLabel>
-                <DropdownMenuItem render={<Link href="/admin" />}>
-                  <RiDashboardLine className="size-4 mr-2 text-primary" />
-                  <span className="font-medium text-primary">Operations Portal</span>
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* Authenticated: Clerk UserButton with deep links */}
+          <Show when="signed-in">
+            <div className="hidden sm:flex items-center gap-2">
+              <UserButton
+                appearance={{
+                  elements: {
+                    userButtonAvatarBox: "size-8 ring-2 ring-primary/20",
+                  },
+                }}
+              >
+                <UserButton.MenuItems>
+                  <UserButton.Link
+                    label="Account Overview"
+                    labelIcon={<RiUserLine className="size-4" />}
+                    href="/account"
+                  />
+                  <UserButton.Link
+                    label="My Reservations"
+                    labelIcon={<RiCalendarLine className="size-4" />}
+                    href="/account/reservations"
+                  />
+                  <UserButton.Link
+                    label="Saved Vehicles"
+                    labelIcon={<RiHeartLine className="size-4" />}
+                    href="/account/saved"
+                  />
+                  <UserButton.Link
+                    label="Operations Portal"
+                    labelIcon={<RiDashboardLine className="size-4 text-primary" />}
+                    href="/admin"
+                  />
+                </UserButton.MenuItems>
+              </UserButton>
+            </div>
+          </Show>
 
           {/* Primary Action Button */}
           <Link href="/vehicles">

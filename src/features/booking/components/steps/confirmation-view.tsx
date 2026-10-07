@@ -43,19 +43,24 @@ export function ConfirmationView() {
           </div>
         </div>
 
-        <div className="space-y-1">
-          <div className="flex justify-center">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center justify-center gap-2">
             <StatusBadge
               status="success"
-              label="Demo Booking Confirmed"
+              label="Reservation Created"
+              size="sm"
+            />
+            <StatusBadge
+              status="warning"
+              label="Payment: Pending / Deferred"
               size="sm"
             />
           </div>
           <h1 className="font-heading text-2xl sm:text-4xl font-bold tracking-tight text-foreground">
-            Reservation Request Complete
+            Reservation Created
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground max-w-md mx-auto">
-            Your prototype booking draft has been created. A confirmation itinerary email simulation has been registered.
+            Your vehicle reservation has been successfully recorded in Veyra. Payment processing is deferred and can be completed later at vehicle handover or via concierge.
           </p>
         </div>
 
@@ -144,20 +149,27 @@ export function ConfirmationView() {
           </div>
         </div>
 
-        {/* Pricing & Deposit Summary */}
+        {/* Pricing & Payment Summary */}
         <div className="rounded-xl border bg-muted/40 p-4 space-y-2 text-xs">
-          <div className="flex justify-between text-muted-foreground">
-            <span>Rental Total (Paid in Demo Mode):</span>
+          <div className="flex justify-between items-center text-muted-foreground">
+            <span>Payment Status:</span>
+            <span className="font-semibold text-amber-600 dark:text-amber-400">
+              Pending / Deferred (Pay at Handover)
+            </span>
+          </div>
+
+          <div className="flex justify-between items-center text-muted-foreground">
+            <span>Total Rental Amount:</span>
             <span className="font-heading text-sm font-bold text-foreground">
               {pricing.currency}
               {pricing.totalRentalPrice.toLocaleString()}
             </span>
           </div>
 
-          <div className="flex justify-between text-muted-foreground">
-            <span>Security Deposit (Authorized at Handover):</span>
+          <div className="flex justify-between items-center text-muted-foreground">
+            <span>Security Deposit:</span>
             <span className="font-mono font-medium text-foreground">
-              ₱{pricing.refundableSecurityDeposit.toLocaleString()}
+              ₱{pricing.refundableSecurityDeposit.toLocaleString()} (Pre-authorized at Handover)
             </span>
           </div>
         </div>
@@ -195,22 +207,33 @@ export function ConfirmationView() {
           <span>Print Summary</span>
         </Button>
 
-        <div className="flex items-center gap-3 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+          <Link href="/account/reservations" className="w-full sm:w-auto">
+            <Button
+              variant="default"
+              onClick={resetBooking}
+              className="w-full sm:w-auto gap-2 text-xs font-semibold shadow-xs"
+            >
+              <RiCarLine className="size-4" data-icon="inline-start" />
+              <span>View in My Reservations</span>
+            </Button>
+          </Link>
+
           <Link href="/vehicles" className="w-full sm:w-auto">
             <Button
               variant="outline"
               onClick={resetBooking}
               className="w-full sm:w-auto gap-2 text-xs"
             >
-              <RiCarLine className="size-4" data-icon="inline-start" />
-              <span>Browse Other Fleet</span>
+              <span>Browse Fleet</span>
             </Button>
           </Link>
 
           <Link href="/" className="w-full sm:w-auto">
             <Button
+              variant="ghost"
               onClick={resetBooking}
-              className="w-full sm:w-auto gap-2 text-xs font-semibold shadow-xs"
+              className="w-full sm:w-auto gap-2 text-xs"
             >
               <RiHome5Line className="size-4" data-icon="inline-start" />
               <span>Return Home</span>

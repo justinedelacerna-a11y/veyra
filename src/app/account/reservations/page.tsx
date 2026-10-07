@@ -3,7 +3,7 @@ import Link from "next/link"
 import { Metadata } from "next"
 import { AccountHeader } from "@/features/account/components/account-header"
 import { ReservationsFilterView } from "@/features/account/components/reservations-filter-view"
-import { getMockReservations } from "@/lib/mock/reservations"
+import { getCustomerReservations } from "@/features/account/server"
 import { Button } from "@/components/ui/button"
 import { RiCarLine } from "@remixicon/react"
 
@@ -12,8 +12,8 @@ export const metadata: Metadata = {
   description: "View and manage your upcoming, active, and past vehicle rentals.",
 }
 
-export default function ReservationsPage() {
-  const reservations = getMockReservations()
+export default async function ReservationsPage() {
+  const reservations = await getCustomerReservations()
 
   return (
     <div className="space-y-6">

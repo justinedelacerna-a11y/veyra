@@ -18,6 +18,8 @@ import {
   RiSettings4Line,
   RiArrowRightLine,
   RiArrowLeftRightLine,
+  RiMapPinLine,
+  RiNotification3Line,
 } from "@remixicon/react"
 import { cn } from "@/lib/utils"
 
@@ -39,9 +41,10 @@ export const adminNavGroups: AdminNavGroup[] = [
     title: "Operations",
     items: [
       { label: "Dashboard", href: "/admin", icon: RiDashboardLine },
-      { label: "Reservations", href: "/admin/reservations", icon: RiCalendarLine, badge: 14 },
-      { label: "Fleet Management", href: "/admin/fleet", icon: RiCarLine },
-      { label: "Maintenance", href: "/admin/maintenance", icon: RiToolsLine, badge: 3, badgeVariant: "warning" },
+      { label: "Bookings", href: "/admin/reservations", icon: RiCalendarLine },
+      { label: "Fleet & Vehicles", href: "/admin/fleet", icon: RiCarLine },
+      { label: "Locations", href: "/admin/locations", icon: RiMapPinLine },
+      { label: "Maintenance", href: "/admin/maintenance", icon: RiToolsLine },
       { label: "Inspections", href: "/admin/inspections", icon: RiScanLine },
     ],
   },
@@ -49,15 +52,16 @@ export const adminNavGroups: AdminNavGroup[] = [
     title: "Customers & Commercial",
     items: [
       { label: "Customers", href: "/admin/customers", icon: RiUserStarLine },
-      { label: "Payments & Invoicing", href: "/admin/payments", icon: RiMoneyDollarCircleLine },
+      { label: "Payments", href: "/admin/payments", icon: RiMoneyDollarCircleLine },
       { label: "Pricing Rules", href: "/admin/pricing", icon: RiPriceTag3Line },
     ],
   },
   {
     title: "System & Governance",
     items: [
-      { label: "Analytics & Reports", href: "/admin/reports", icon: RiBarChartLine },
-      { label: "Staff & Roles", href: "/admin/users", icon: RiGroupLine },
+      { label: "Reports & Analytics", href: "/admin/reports", icon: RiBarChartLine },
+      { label: "Staff & Team", href: "/admin/users", icon: RiGroupLine },
+      { label: "Notifications", href: "/admin/notifications", icon: RiNotification3Line },
       { label: "Audit Logs", href: "/admin/audit", icon: RiShieldCheckLine },
       { label: "Settings", href: "/admin/settings", icon: RiSettings4Line },
     ],

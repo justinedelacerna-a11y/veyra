@@ -30,13 +30,13 @@ const mainSteps = [
   {
     step: "01",
     icon: RiCalendarEventLine,
-    title: "Select Your Dates & Hub",
+    title: "Select Your Dates",
     description:
-      "Choose your rental window and preferred pickup hub — either an airport valet bay or a city-center station. Veyra matches your exact requirement, not just a vehicle class.",
+      "Choose your rental dates and pickup time in Butuan City. Veyra matches your exact requirement, guaranteeing the specific vehicle model you choose.",
     details: [
-      "Specify pickup and return locations independently",
-      "Choose any hour — airport hubs operate 24/7",
-      "Instant price display with all fees included",
+      "Convenient handover at Butuan City Operations Hub",
+      "Flexible schedule with prompt customer support",
+      "Instant price display with all taxes and insurance included",
     ],
   },
   {
@@ -92,11 +92,11 @@ const mainSteps = [
     icon: RiSmartphoneLine,
     title: "Return & Close Out",
     description:
-      "Return to any designated Veyra hub. Post-trip inspection confirms condition. If everything checks out, your deposit is released and a final receipt is emailed instantly.",
+      "Return the vehicle to our Butuan City Operations Hub. Post-trip inspection confirms condition, releases your deposit, and emails your closure receipt.",
     details: [
-      "Multi-hub return supported",
-      "Inspection completed in front of you",
-      "Digital receipt and closure confirmation",
+      "Convenient return in Butuan City",
+      "Inspection completed transparently in front of you",
+      "Digital receipt and swift deposit closure",
     ],
   },
 ]

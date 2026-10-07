@@ -37,8 +37,9 @@ export function PaymentStep() {
     draft.agreedToCancellation
   )
   const [errorNotice, setErrorNotice] = React.useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
     setErrorNotice(null)
 
     if (!agreedTerms || !agreedCancel) {
@@ -48,14 +49,25 @@ export function PaymentStep() {
       return
     }
 
-    updateDraft({
-      paymentMethod: paymentChoice,
-      agreedToTerms: agreedTerms,
-      agreedToCancellation: agreedCancel,
-    })
+    setIsSubmitting(true)
+    try {
+      updateDraft({
+        paymentMethod: paymentChoice,
+        agreedToTerms: agreedTerms,
+        agreedToCancellation: agreedCancel,
+      })
 
-    const ref = completeBooking()
-    router.push(`/booking/confirmation?ref=${ref}`)
+      const ref = await completeBooking()
+      if (ref) {
+        router.push(`/booking/confirmation?ref=${ref}`)
+      }
+    } catch (err) {
+      setErrorNotice(
+        err instanceof Error ? err.message : "Failed to record reservation. Please try again."
+      )
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -66,21 +78,21 @@ export function PaymentStep() {
           Step 05 of 06
         </span>
         <h1 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-          Payment Method & Agreement
+          Payment Agreement & Handover
         </h1>
         <p className="text-xs sm:text-sm text-muted-foreground">
-          Select your preferred payment method and review rental terms. In prototype mode, no actual charges or card transactions occur.
+          Select your intended payment method and review rental policies. Online payment processing is deferred; no immediate charges will be billed today.
         </p>
       </div>
 
-      {/* Prototype Environment Notice */}
-      <Alert className="border-primary/30 bg-primary/5">
-        <RiInformationLine className="size-4 text-primary" />
+      {/* Payment Deferred Notice */}
+      <Alert className="border-amber-500/30 bg-amber-500/5">
+        <RiInformationLine className="size-4 text-amber-600 dark:text-amber-400" />
         <AlertTitle className="text-xs font-bold text-foreground">
-          Frontend Prototype Mode
+          Payment Processing Unavailable — Payment Deferred
         </AlertTitle>
         <AlertDescription className="text-xs text-muted-foreground">
-          Payment processing gateway integration is scheduled for backend milestones. Selecting a method here simulates reservation confirmation without billing your account.
+          Payment processing is currently unavailable. Your reservation will be recorded and payment can be completed later at vehicle handover or via concierge.
         </AlertDescription>
       </Alert>
 
@@ -287,10 +299,15 @@ export function PaymentStep() {
         <Button
           size="lg"
           onClick={handleComplete}
+          disabled={isSubmitting}
           className="gap-2 font-semibold shadow-md"
         >
           <RiShieldCheckLine className="size-4" data-icon="inline-start" />
-          <span>Complete Booking (Demo Mode)</span>
+          <span>
+            {isSubmitting
+              ? "Recording Reservation..."
+              : `Confirm Reservation • Pay at Handover (${pricing.currency}${pricing.totalRentalPrice.toLocaleString()})`}
+          </span>
           <RiArrowRightLine className="size-4" data-icon="inline-end" />
         </Button>
       </div>

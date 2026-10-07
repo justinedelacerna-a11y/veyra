@@ -1,12 +1,15 @@
 import * as React from "react"
 import Link from "next/link"
-import { MOCK_FEATURED_VEHICLES } from "@/lib/mock/vehicles"
+import { getVehicleCatalog } from "../server"
 import { VehicleCard } from "./vehicle-card"
 import { Button } from "@/components/ui/button"
 import { StatusBadge } from "@/components/common/status-badge"
-import { RiArrowRightLine } from "@remixicon/react"
+import { RiArrowRightLine, RiCarLine } from "@remixicon/react"
 
-export function FeaturedVehicles() {
+export async function FeaturedVehicles() {
+  const { data: allVehicles } = await getVehicleCatalog()
+  const featured = (allVehicles || []).filter((v) => v.available).slice(0, 4)
+
   return (
     <div className="space-y-8">
       {/* Section Header */}
@@ -32,12 +35,28 @@ export function FeaturedVehicles() {
         </Link>
       </div>
 
-      {/* Grid of Vehicles */}
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        {MOCK_FEATURED_VEHICLES.map((vehicle) => (
-          <VehicleCard key={vehicle.id} vehicle={vehicle} />
-        ))}
-      </div>
+      {/* Grid of Vehicles or Graceful Empty State */}
+      {featured.length > 0 ? (
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {featured.map((vehicle) => (
+            <VehicleCard key={vehicle.id} vehicle={vehicle} />
+          ))}
+        </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center p-12 text-center border rounded-2xl bg-card">
+          <div className="size-12 rounded-full bg-muted flex items-center justify-center mb-3">
+            <RiCarLine className="size-6 text-muted-foreground" />
+          </div>
+          <h3 className="text-base font-semibold text-foreground">No Featured Vehicles Currently Available</h3>
+          <p className="text-xs text-muted-foreground max-w-sm mt-1 mb-4">
+            Our fleet is actively circulating. Please check the full catalog or adjust search criteria to reserve ready models.
+          </p>
+          <Link href="/vehicles">
+            <Button size="sm">Browse Full Fleet</Button>
+          </Link>
+        </div>
+      )}
     </div>
   )
 }
+

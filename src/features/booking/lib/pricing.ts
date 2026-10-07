@@ -1,17 +1,15 @@
 import { Vehicle } from "@/types"
 import { BookingPricingSummary, ExtraOption } from "../types"
-import { MOCK_BOOKING_EXTRAS } from "../data/extras"
 
 /**
- * Frontend Mock Pricing Calculation Abstraction
- * NOTE: This is a client-side calculation boundary for prototype/demo mode.
- * In production, this will be replaced with an authoritative server-side quote engine.
+ * Client-side Pricing Calculation Fallback
+ * Primary pricing is computed authoritatively server-side via /api/quote.
  */
 export function calculateBookingPricing(
   vehicle: Vehicle,
   rentalDays: number,
   selectedExtraIds: string[],
-  availableExtras: ExtraOption[] = MOCK_BOOKING_EXTRAS
+  availableExtras: ExtraOption[] = []
 ): BookingPricingSummary {
   const safeDays = Math.max(1, rentalDays)
   const baseRental = vehicle.dailyRate * safeDays

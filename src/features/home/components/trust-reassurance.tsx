@@ -31,7 +31,7 @@ const trustPillars: TrustPillar[] = [
   {
     icon: RiCustomerServiceLine,
     title: "24/7 Roadside Concierge",
-    description: "Direct access to our logistics desk and nationwide recovery assistance whenever you need support.",
+    description: "Direct access to our logistics desk and local Butuan City recovery assistance whenever you need support.",
   },
 ]
 

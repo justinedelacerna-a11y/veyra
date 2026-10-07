@@ -27,17 +27,17 @@ export function HeroSection() {
               size="sm"
             />
             <span className="hidden sm:inline-flex text-xs text-muted-foreground">
-              Airport Valet & City Hubs
+              Butuan City, Agusan del Norte
             </span>
           </div>
 
           <h1 className="font-heading text-3xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-foreground text-balance">
-            Find the right car <br className="hidden sm:inline" />
-            <span className="text-primary">for your journey.</span>
+            Local Car Rental <br className="hidden sm:inline" />
+            <span className="text-primary">in Butuan City.</span>
           </h1>
 
           <p className="text-sm sm:text-base text-muted-foreground max-w-xl leading-relaxed text-balance">
-            Executive sedans, luxury SUVs, and high-performance electric vehicles. Transparent pricing, verified vehicle condition, and contactless valet pickup.
+            Veyra serves customers in Butuan City, Agusan del Norte. Executive sedans, luxury SUVs, and high-performance electric vehicles with transparent pricing, verified vehicle condition, and prompt local handover.
           </p>
         </div>
 
@@ -62,7 +62,7 @@ export function HeroSection() {
                 </span>
               </div>
               <p className="text-xs text-muted-foreground max-w-md leading-relaxed">
-                Skip rental counter paperwork. Digital identity check-in delivers prompt key handover directly at airport terminal valet bays.
+                Skip rental counter paperwork. Digital identity check-in delivers prompt key handover directly at our Butuan City Operations Hub.
               </p>
             </div>
           </div>

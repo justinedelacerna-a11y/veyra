@@ -12,9 +12,8 @@ import {
   RiUserSettingsLine,
   RiShieldKeyholeLine,
   RiShieldCheckLine,
-  RiInformationLine,
 } from "@remixicon/react"
-import { MOCK_CUSTOMER_PROFILE } from "@/lib/mock/customer"
+import { useUser } from "@clerk/nextjs"
 
 export interface AccountNavItem {
   title: string
@@ -33,7 +32,6 @@ export const accountNavItems: AccountNavItem[] = [
     title: "Reservations",
     href: "/account/reservations",
     icon: RiCalendarLine,
-    badge: "1 Active",
   },
   {
     title: "Driver Information",
@@ -44,7 +42,6 @@ export const accountNavItems: AccountNavItem[] = [
     title: "Documents",
     href: "/account/documents",
     icon: RiFileList3Line,
-    badge: "1 Pending",
   },
   {
     title: "Profile Settings",
@@ -60,6 +57,14 @@ export const accountNavItems: AccountNavItem[] = [
 
 export function AccountSidebar({ className }: { className?: string }) {
   const pathname = usePathname()
+  const { user } = useUser()
+
+  const firstName = user?.firstName || "Member"
+  const lastName = user?.lastName || ""
+  const initials = `${firstName[0] || "M"}${lastName[0] || ""}`
+  const email = user?.primaryEmailAddress?.emailAddress || "member@veyra.com"
+  const membershipNumber = user ? `VYR-M-${user.id.slice(-5).toUpperCase()}` : "VYR-MEMBER"
+  const tier = "Veyra Circle • Standard Tier"
 
   return (
     <aside
@@ -70,28 +75,27 @@ export function AccountSidebar({ className }: { className?: string }) {
       <div className="rounded-xl border bg-card p-5 shadow-xs">
         <div className="flex items-center gap-3.5">
           <div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-base border border-primary/20">
-            {MOCK_CUSTOMER_PROFILE.firstName[0]}
-            {MOCK_CUSTOMER_PROFILE.lastName[0]}
+            {initials}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="font-semibold text-foreground truncate text-sm">
-                {MOCK_CUSTOMER_PROFILE.firstName} {MOCK_CUSTOMER_PROFILE.lastName}
+                {firstName} {lastName}
               </span>
               <RiShieldCheckLine className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" aria-label="Verified Customer" />
             </div>
             <p className="text-xs text-muted-foreground truncate">
-              {MOCK_CUSTOMER_PROFILE.email}
+              {email}
             </p>
             <div className="mt-1 flex items-center gap-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
-              <span>{MOCK_CUSTOMER_PROFILE.tier}</span>
+              <span>{tier}</span>
             </div>
           </div>
         </div>
 
         <div className="mt-4 pt-4 border-t flex items-center justify-between text-xs text-muted-foreground">
           <span>Member ID</span>
-          <span className="font-mono font-medium text-foreground">{MOCK_CUSTOMER_PROFILE.membershipNumber}</span>
+          <span className="font-mono font-medium text-foreground">{membershipNumber}</span>
         </div>
       </div>
 
@@ -142,17 +146,6 @@ export function AccountSidebar({ className }: { className?: string }) {
           )
         })}
       </nav>
-
-      {/* Prototype Context Banner */}
-      <div className="rounded-lg border border-dashed border-border/80 bg-muted/40 p-4 text-xs text-muted-foreground flex gap-2.5 items-start">
-        <RiInformationLine className="size-4 text-muted-foreground shrink-0 mt-0.5" />
-        <div className="space-y-1">
-          <p className="font-medium text-foreground">Frontend Prototype Mode</p>
-          <p className="text-[11px] leading-relaxed">
-            Customer account and reservation data is modeled using typed mock entities. Full identity persistence will be connected via Clerk.
-          </p>
-        </div>
-      </div>
     </aside>
   )
 }

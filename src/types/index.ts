@@ -47,16 +47,38 @@ export interface Vehicle {
   power?: string
   acceleration?: string
   images?: string[]
+  primaryImage?: string
+  imageRecords?: VehicleImage[]
+  locationId?: string
+  locationName?: string
+  barangay?: string
+}
+
+export interface VehicleImage {
+  id: string
+  vehicleId: string
+  storagePath: string
+  altText?: string | null
+  sortOrder: number
+  isPrimary: boolean
+  createdAt: string
+  url: string
 }
 
 export interface LocationHub {
   id: string
+  branchId?: string
   name: string
+  barangay?: string
   city: string
-  type: "Airport Terminal" | "City Center" | "Private Hub"
+  province?: string
+  type: "Airport Terminal" | "City Center" | "Private Hub" | "Barangay Hub"
   address: string
   operatingHours: string
   pickupAvailable: boolean
+  pickupEnabled?: boolean
+  returnAvailable?: boolean
+  returnEnabled?: boolean
 }
 
 export interface CategoryCardData {

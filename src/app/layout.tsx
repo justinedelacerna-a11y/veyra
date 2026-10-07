@@ -17,9 +17,9 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Veyra — Premium Car Rental & Mobility Platform",
+  title: "Veyra — Local Car Rental in Butuan City, Agusan del Norte",
   description:
-    "Curated luxury and executive vehicle rentals. Instant booking, guaranteed models, and seamless airport or city pickup.",
+    "Local car rental in Butuan City, Agusan del Norte, Philippines. Luxury SUVs, executive sedans, and high-performance electric vehicles with guaranteed models and prompt local handover.",
 }
 
 export default function RootLayout({
@@ -28,21 +28,21 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html
-      lang="en"
-      className={cn(
-        "h-full antialiased font-sans",
-        geistSans.variable,
-        geistMono.variable,
-        inter.variable,
-        geistHeading.variable
-      )}
-    >
-      <body className="min-h-full flex flex-col bg-background text-foreground">
-        <ClerkProvider>
+    <ClerkProvider>
+      <html
+        lang="en"
+        className={cn(
+          "h-full antialiased font-sans",
+          geistSans.variable,
+          geistMono.variable,
+          inter.variable,
+          geistHeading.variable
+        )}
+      >
+        <body className="min-h-full flex flex-col bg-background text-foreground">
           <TooltipProvider>{children}</TooltipProvider>
-        </ClerkProvider>
-      </body>
-    </html>
+        </body>
+      </html>
+    </ClerkProvider>
   )
 }

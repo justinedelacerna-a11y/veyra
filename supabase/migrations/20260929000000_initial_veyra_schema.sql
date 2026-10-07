@@ -49,7 +49,7 @@ GRANT USAGE ON SCHEMA veyra_private TO authenticated, service_role;
 
 
 -- >>> 01_identity.sql <<<
-﻿-- ============================================================
+-- ============================================================
 -- Veyra -- Identity & Users (01)
 -- Tables: users, customers, staff_users
 -- ============================================================
@@ -149,7 +149,7 @@ COMMENT ON COLUMN public.staff_users.role IS 'Staff application role controlling
 
 
 -- >>> 02_branches.sql <<<
-﻿-- ============================================================
+-- ============================================================
 -- Veyra -- Branches & Locations (02)
 -- Tables: branches, locations
 -- ============================================================
@@ -221,7 +221,7 @@ ALTER TABLE public.staff_users
 
 
 -- >>> 03_fleet.sql <<<
-﻿-- ============================================================
+-- ============================================================
 -- Veyra -- Fleet (03)
 -- Tables: vehicle_classes, vehicles, vehicle_features, vehicle_photos
 -- ============================================================
@@ -301,7 +301,7 @@ CREATE INDEX IF NOT EXISTS idx_vehicles_active_fleet
 CREATE INDEX IF NOT EXISTS idx_vehicles_search_trgm
   ON public.vehicles USING gin ((make || ' ' || model) gin_trgm_ops);
 
-COMMENT ON TABLE  public.vehicles            IS 'Individual physical fleet vehicles. Sensitive fields not exposed to anon via RLS — use vehicle_catalog view instead.';
+COMMENT ON TABLE  public.vehicles            IS 'Individual physical fleet vehicles. Sensitive fields not exposed to anon via RLS Ã¢â‚¬â€ use vehicle_catalog view instead.';
 COMMENT ON COLUMN public.vehicles.daily_rate IS 'Daily rate in centavos; overrides vehicle_class.base_daily_rate.';
 COMMENT ON COLUMN public.vehicles.vin        IS 'SENSITIVE: staff-only. 17-character VIN number.';
 COMMENT ON COLUMN public.vehicles.plate_number IS 'SENSITIVE: staff-only. Vehicle license plate.';
@@ -310,7 +310,7 @@ COMMENT ON COLUMN public.vehicles.deleted_at IS 'Soft retire. NULL = active in f
 -- ------------------------------------
 -- vehicle_features
 -- Many-to-many: features per vehicle.
--- No sensitive data — safe for public read.
+-- No sensitive data Ã¢â‚¬â€ safe for public read.
 -- ------------------------------------
 CREATE TABLE IF NOT EXISTS public.vehicle_features (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -348,7 +348,7 @@ COMMENT ON COLUMN public.vehicle_photos.bucket IS 'Supabase Storage bucket: vehi
 
 
 -- >>> 04_availability.sql <<<
-﻿-- ============================================================
+-- ============================================================
 -- Veyra -- Availability (04)
 -- Tables: availability_blocks
 -- ============================================================
@@ -379,12 +379,12 @@ CREATE INDEX IF NOT EXISTS idx_availability_blocks_vehicle_id
 -- GiST range overlap index: enables the && overlap operator for availability queries.
 -- Requires btree_gist extension (declared in 00_extensions.sql).
 -- Used for: "find all blocks that overlap a given [pickup_at, return_at) window"
--- Query pattern: WHERE vehicle_id = $v AND tsrange(starts_at, ends_at, '[)') && tsrange($pickup, $return, '[)')
+-- Query pattern: WHERE vehicle_id = $v AND tstzrange(starts_at, ends_at, '[)') && tstzrange($pickup, $return, '[)')
 -- Ref: docs/database/indexes.md section 2.2
 CREATE INDEX IF NOT EXISTS idx_availability_blocks_gist
   ON public.availability_blocks USING gist (
     vehicle_id,
-    tsrange(starts_at, ends_at, '[)')
+    tstzrange(starts_at, ends_at, '[)')
   );
 
 COMMENT ON TABLE  public.availability_blocks          IS 'Explicit vehicle availability blocks for maintenance, holds, cleaning, etc. Uses half-open [) intervals.';
@@ -393,7 +393,7 @@ COMMENT ON COLUMN public.availability_blocks.ends_at   IS 'Exclusive end of bloc
 
 
 -- >>> 05_extras_pricing.sql <<<
-﻿-- ============================================================
+-- ============================================================
 -- Veyra -- Extras & Rate Plans (05)
 -- Tables: extras, rate_plans
 -- ============================================================
@@ -453,7 +453,7 @@ COMMENT ON TABLE  public.rate_plans IS 'Named rate configurations for volume dis
 
 
 -- >>> 06_quotes.sql <<<
-﻿-- ============================================================
+-- ============================================================
 -- Veyra -- Quotes (06)
 -- Tables: quotes, quote_extras
 -- ============================================================
@@ -516,7 +516,7 @@ COMMENT ON TABLE  public.quote_extras IS 'Extra line items included in a quote. 
 
 
 -- >>> 07_reservations.sql <<<
-﻿-- ============================================================
+-- ============================================================
 -- Veyra -- Reservations (07)
 -- Tables: reservations, reservation_extras, reservation_drivers
 -- ============================================================
@@ -533,8 +533,8 @@ COMMENT ON TABLE  public.quote_extras IS 'Extra line items included in a quote. 
 --   See: docs/operations/availability.md section 10
 --
 -- State Machine (reservation-state-machine.md):
---   draft → quote_created → held → payment_pending → confirmed
---   → pickup_ready → active → return_inspection → completed
+--   draft Ã¢â€ â€™ quote_created Ã¢â€ â€™ held Ã¢â€ â€™ payment_pending Ã¢â€ â€™ confirmed
+--   Ã¢â€ â€™ pickup_ready Ã¢â€ â€™ active Ã¢â€ â€™ return_inspection Ã¢â€ â€™ completed
 --   Terminal: expired, payment_failed, cancelled, no_show, disputed
 -- ------------------------------------
 CREATE TABLE IF NOT EXISTS public.reservations (
@@ -620,7 +620,7 @@ CREATE INDEX IF NOT EXISTS idx_reservations_overlap_btree
 CREATE INDEX IF NOT EXISTS idx_reservations_overlap_gist
   ON public.reservations USING gist (
     vehicle_id,
-    tsrange(pickup_at, return_at, '[)')
+    tstzrange(pickup_at, return_at, '[)')
   )
   WHERE status NOT IN ('cancelled', 'no_show', 'expired', 'payment_failed', 'completed', 'draft');
 
@@ -684,7 +684,7 @@ COMMENT ON TABLE  public.reservation_drivers IS 'Additional authorized drivers f
 
 
 -- >>> 08_payments.sql <<<
-﻿-- ============================================================
+-- ============================================================
 -- Veyra -- Payments (08)
 -- Tables: payments, refunds, deposits
 --
@@ -778,7 +778,7 @@ COMMENT ON TABLE  public.deposits IS 'Security deposit hold tracking. One record
 
 
 -- >>> 09_documents.sql <<<
-﻿-- ============================================================
+-- ============================================================
 -- Veyra -- Documents (09)
 -- Tables: customer_documents
 -- ============================================================
@@ -814,7 +814,7 @@ COMMENT ON COLUMN public.customer_documents.storage_path IS 'Supabase Storage ob
 
 
 -- >>> 10_inspections.sql <<<
-﻿-- ============================================================
+-- ============================================================
 -- Veyra -- Inspections (10)
 -- Tables: inspections, inspection_check_items, damage_reports
 -- ============================================================
@@ -891,7 +891,7 @@ COMMENT ON TABLE  public.damage_reports IS 'Damage findings identified during in
 
 
 -- >>> 11_maintenance.sql <<<
-﻿-- ============================================================
+-- ============================================================
 -- Veyra -- Maintenance (11)
 -- Tables: maintenance_records
 -- ============================================================
@@ -932,7 +932,7 @@ COMMENT ON TABLE  public.maintenance_records IS 'Scheduled and completed fleet m
 
 
 -- >>> 12_webhooks.sql <<<
-﻿-- ============================================================
+-- ============================================================
 -- Veyra -- Webhook Events (12)
 -- Tables: webhook_events
 -- ============================================================
@@ -969,7 +969,7 @@ COMMENT ON COLUMN public.webhook_events.provider_event_id IS 'Provider-assigned 
 
 
 -- >>> 13_audit.sql <<<
-﻿-- ============================================================
+-- ============================================================
 -- Veyra -- Audit Events (13)
 -- Tables: audit_events
 -- APPEND-ONLY: no UPDATE or DELETE ever permitted.
@@ -1010,7 +1010,7 @@ COMMENT ON COLUMN public.audit_events.resource_id IS 'UUID stored as TEXT to sup
 
 
 -- >>> 14_notifications.sql <<<
-﻿-- ============================================================
+-- ============================================================
 -- Veyra -- Notifications (14)
 -- Tables: notification_queue
 -- ============================================================
@@ -1387,7 +1387,7 @@ CREATE OR REPLACE TRIGGER trg_reservations_protect_columns
 
 
 -- >>> 17_rls.sql <<<
-﻿-- ============================================================
+-- ============================================================
 -- Veyra -- Row-Level Security Policies (17)
 -- SECURITY MODEL:
 --   1. Primary authorization: Next.js Server Actions / Route Handlers
@@ -1462,7 +1462,7 @@ CREATE POLICY "vehicle_classes: anon read"          ON public.vehicle_classes FO
 CREATE POLICY "vehicle_classes: auth read"          ON public.vehicle_classes FOR SELECT TO authenticated USING (true);
 CREATE POLICY "vehicle_classes: fleet mgr write"    ON public.vehicle_classes FOR ALL    TO authenticated USING (veyra_private.current_staff_role() IN ('fleet_manager','admin','superadmin')) WITH CHECK (veyra_private.current_staff_role() IN ('fleet_manager','admin','superadmin'));
 
--- 7. VEHICLES (sensitive — no anon access; use vehicle_catalog view)
+-- 7. VEHICLES (sensitive Ã¢â‚¬â€ no anon access; use vehicle_catalog view)
 CREATE POLICY "vehicles: fleet mgr write"
   ON public.vehicles FOR ALL TO authenticated
   USING (veyra_private.current_staff_role() IN ('fleet_manager','admin','superadmin'))

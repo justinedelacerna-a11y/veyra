@@ -4,16 +4,7 @@ import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu"
+import { UserButton } from "@clerk/nextjs"
 import {
   Breadcrumb,
   BreadcrumbList,
@@ -120,50 +111,33 @@ export function AdminHeader({ onOpenMobileNav, className }: AdminHeaderProps) {
         </Button>
 
         {/* Staff User Avatar & Menu */}
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <button
-                type="button"
-                className="flex items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring p-0.5"
-                aria-label="Staff profile menu"
-              />
-            }
+        <div className="flex items-center">
+          <UserButton
+            appearance={{
+              elements: {
+                userButtonAvatarBox: "size-8 ring-2 ring-primary/20",
+              },
+            }}
           >
-            <Avatar className="size-8">
-              <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
-                OP
-              </AvatarFallback>
-            </Avatar>
-          </DropdownMenuTrigger>
-
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>
-                <div className="flex flex-col">
-                  <span className="font-semibold text-foreground">Operations Staff</span>
-                  <span className="text-[11px] text-muted-foreground">ops-duty@veyra.internal</span>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem render={<Link href="/admin/settings" />}>
-                <RiUserLine className="size-4 mr-2" />
-                <span>Shift Profile</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem render={<Link href="/admin/audit" />}>
-                <RiShieldCheckLine className="size-4 mr-2" />
-                <span>Security & Logs</span>
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem render={<Link href="/" />}>
-                <RiLogoutBoxRLine className="size-4 mr-2" />
-                <span>Exit Operations</span>
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
+            <UserButton.MenuItems>
+              <UserButton.Link
+                label="Shift Profile"
+                labelIcon={<RiUserLine className="size-4" />}
+                href="/admin/settings"
+              />
+              <UserButton.Link
+                label="Security & Logs"
+                labelIcon={<RiShieldCheckLine className="size-4" />}
+                href="/admin/audit"
+              />
+              <UserButton.Link
+                label="Exit Operations"
+                labelIcon={<RiLogoutBoxRLine className="size-4" />}
+                href="/"
+              />
+            </UserButton.MenuItems>
+          </UserButton>
+        </div>
       </div>
     </header>
   )

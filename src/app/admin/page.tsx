@@ -8,54 +8,101 @@ import { Button } from "@/components/ui/button"
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
-import { MOCK_ADMIN_RESERVATIONS } from "@/lib/mock/admin-reservations"
-import { getFleetSummary } from "@/lib/mock/fleet"
-import { MOCK_MAINTENANCE } from "@/lib/mock/admin-ops"
+import { getAdminDashboardData } from "@/features/admin/server/dashboard-service"
 import { RESERVATION_STATUS_CONFIG } from "@/features/admin/types"
 import {
   RiCalendarLine, RiCarLine, RiAlertLine, RiToolsLine,
-  RiArrowRightLine, RiCheckboxCircleLine, RiTimeLine,
+  RiArrowRightLine, RiAddLine, RiSearchLine, RiMoneyDollarCircleLine,
+  RiScanLine, RiGasStationLine, RiArrowUpDownLine, RiPercentLine,
 } from "@remixicon/react"
+import { requireAdminStaff } from "@/features/admin/server/admin-auth"
+import { DashboardRealtimeWrapper } from "./dashboard-realtime-wrapper"
 
 export const metadata: Metadata = {
   title: "Operations Dashboard — Veyra Admin",
   robots: { index: false, follow: false },
 }
 
-export default function AdminDashboardPage() {
-  const fleetSummary = getFleetSummary()
+export default async function AdminDashboardPage() {
+  await requireAdminStaff()
 
-  const todayPickups = MOCK_ADMIN_RESERVATIONS.filter(
-    (r) => r.status === "pickup_ready" || r.status === "confirmed"
-  )
-  const activeRentals = MOCK_ADMIN_RESERVATIONS.filter((r) => r.status === "active")
-  const needsAttention = MOCK_ADMIN_RESERVATIONS.filter(
-    (r) => r.status === "payment_pending" || r.status === "return_inspection" || r.status === "disputed"
-  )
-  const overdueMaintenances = MOCK_MAINTENANCE.filter(
-    (m) => m.status === "overdue" || m.status === "due"
-  )
+  const {
+    fleetSummary,
+    todayPickups,
+    todayReturns,
+    activeRentals,
+    needsAttention,
+    pendingApprovals,
+    totalRevenue,
+    utilizationRate,
+    lowFuelVehicles,
+    serviceDueVehicles,
+    maintenanceAlertCount,
+  } = await getAdminDashboardData()
 
   return (
+    <DashboardRealtimeWrapper>
     <div className="space-y-6">
-      <PageHeader
-        title="Operations Dashboard"
-        description="Today's operational overview — pickups, active rentals, and fleet status."
-        actions={
-          <div className="flex items-center gap-2 text-xs text-muted-foreground border rounded-md px-3 py-1.5 bg-card">
-            <span className="size-1.5 rounded-full bg-emerald-500 inline-block" aria-hidden="true" />
-            <span>Live Prototype — Sep 28, 2026</span>
-          </div>
-        }
-      />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <PageHeader
+          title="Operations Dashboard"
+          description="Butuan City hub operational overview — real-time fleet, bookings, revenue, and active rental status."
+        />
+        <div className="flex items-center gap-2">
+          <StatusBadge status="success" label="Butuan Hub Live" size="sm" />
+        </div>
+      </div>
 
-      {/* KPI Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Quick Action Shortcuts */}
+      <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-lg border bg-card/60 backdrop-blur-xs">
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mr-1">
+          Quick Actions:
+        </span>
+        <Link href="/admin/fleet">
+          <Button size="xs" variant="default" className="gap-1.5 shadow-2xs">
+            <RiAddLine className="size-3.5" />
+            <span>Add Vehicle</span>
+          </Button>
+        </Link>
+        <Link href="/search">
+          <Button size="xs" variant="outline" className="gap-1.5">
+            <RiSearchLine className="size-3.5" />
+            <span>New Booking</span>
+          </Button>
+        </Link>
+        <Link href="/admin/payments">
+          <Button size="xs" variant="outline" className="gap-1.5">
+            <RiMoneyDollarCircleLine className="size-3.5" />
+            <span>Record Payment</span>
+          </Button>
+        </Link>
+        <Link href="/admin/maintenance">
+          <Button size="xs" variant="outline" className="gap-1.5">
+            <RiToolsLine className="size-3.5" />
+            <span>Schedule Maintenance</span>
+          </Button>
+        </Link>
+        <Link href="/admin/inspections">
+          <Button size="xs" variant="outline" className="gap-1.5">
+            <RiScanLine className="size-3.5" />
+            <span>Start Inspection</span>
+          </Button>
+        </Link>
+      </div>
+
+      {/* Primary KPI Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
         <MetricCard
           label="Today's Pickups"
           value={todayPickups.length}
           icon={RiCalendarLine}
-          description={`${todayPickups.filter((r) => r.status === "pickup_ready").length} pickup-ready`}
+          description={`${todayPickups.filter((r) => r.status === "pickup_ready").length} staged ready`}
+        />
+        <MetricCard
+          label="Today's Returns"
+          value={todayReturns.length}
+          icon={RiArrowUpDownLine}
+          description={`${todayReturns.filter((r) => r.status === "return_inspection").length} inspecting`}
         />
         <MetricCard
           label="Active Rentals"
@@ -64,40 +111,113 @@ export default function AdminDashboardPage() {
           description="Currently on road"
         />
         <MetricCard
-          label="Needs Attention"
-          value={needsAttention.length}
+          label="Pending Approvals"
+          value={pendingApprovals.length}
           icon={RiAlertLine}
-          badge={needsAttention.length > 0 ? (
-            <StatusBadge status="warning" label="Action" size="sm" />
+          badge={pendingApprovals.length > 0 ? (
+            <StatusBadge status="warning" label="Pending" size="sm" />
           ) : undefined}
-          description="Payment/inspection pending"
+          description="Hold / payment pending"
         />
         <MetricCard
-          label="Maintenance Alerts"
-          value={overdueMaintenances.length}
-          icon={RiToolsLine}
-          badge={overdueMaintenances.length > 0 ? (
-            <StatusBadge status="error" label="Overdue" size="sm" />
-          ) : undefined}
-          description={`${fleetSummary.maintenance} in service bay`}
+          label="Fleet Utilization"
+          value={`${utilizationRate}%`}
+          icon={RiPercentLine}
+          description={`${fleetSummary.rented + fleetSummary.reserved} of ${fleetSummary.total} units`}
         />
       </div>
 
-      {/* Fleet Availability Summary Row */}
+      {/* Secondary Financial & Fleet Status Banner */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        {[
-          { label: "Available", value: fleetSummary.available, color: "emerald" },
-          { label: "Reserved", value: fleetSummary.reserved, color: "sky" },
-          { label: "Rented", value: fleetSummary.rented, color: "violet" },
-          { label: "Maintenance/Inspection", value: fleetSummary.maintenance, color: "amber" },
-          { label: "Total Fleet", value: fleetSummary.total, color: "foreground" },
-        ].map((item) => (
-          <div key={item.label} className="rounded-lg border bg-card p-3 text-center">
-            <div className="font-heading text-2xl font-bold text-foreground">{item.value}</div>
-            <div className="text-xs text-muted-foreground mt-0.5">{item.label}</div>
+        <div className="rounded-lg border bg-card p-3">
+          <div className="text-xs text-muted-foreground font-medium">Total Revenue</div>
+          <div className="font-heading text-lg font-bold text-foreground mt-0.5">
+            ₱{totalRevenue.toLocaleString()}
           </div>
-        ))}
+          <div className="text-[10px] text-muted-foreground mt-0.5">Confirmed & active</div>
+        </div>
+        <div className="rounded-lg border bg-card p-3">
+          <div className="text-xs text-muted-foreground font-medium">Available Units</div>
+          <div className="font-heading text-lg font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+            {fleetSummary.available} / {fleetSummary.total}
+          </div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">Ready for booking</div>
+        </div>
+        <div className="rounded-lg border bg-card p-3">
+          <div className="text-xs text-muted-foreground font-medium">Rented / On Road</div>
+          <div className="font-heading text-lg font-bold text-violet-600 dark:text-violet-400 mt-0.5">
+            {fleetSummary.rented}
+          </div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">Customer active</div>
+        </div>
+        <div className="rounded-lg border bg-card p-3">
+          <div className="text-xs text-muted-foreground font-medium">Maintenance Bay</div>
+          <div className="font-heading text-lg font-bold text-amber-600 dark:text-amber-400 mt-0.5">
+            {fleetSummary.maintenance}
+          </div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">{maintenanceAlertCount} alerts</div>
+        </div>
+        <div className="rounded-lg border bg-card p-3">
+          <div className="text-xs text-muted-foreground font-medium">Total Fleet</div>
+          <div className="font-heading text-lg font-bold text-foreground mt-0.5">
+            {fleetSummary.total}
+          </div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">All registered vehicles</div>
+        </div>
       </div>
+
+      {/* Alerts Row: Low Fuel & Maintenance Due */}
+      {(lowFuelVehicles.length > 0 || serviceDueVehicles.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {lowFuelVehicles.length > 0 && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <RiGasStationLine className="size-4 text-amber-600" />
+                  <span className="text-xs font-semibold text-amber-900 dark:text-amber-200">
+                    Low Fuel Alert ({lowFuelVehicles.length} vehicles)
+                  </span>
+                </div>
+                <Link href="/admin/fleet" className="text-[11px] text-amber-700 dark:text-amber-300 hover:underline">
+                  View Fleet
+                </Link>
+              </div>
+              <div className="space-y-1.5 pt-1">
+                {lowFuelVehicles.slice(0, 3).map((v) => (
+                  <div key={v.id} className="flex items-center justify-between text-xs">
+                    <span className="font-medium text-foreground">{v.make} {v.model} ({v.plateNumber})</span>
+                    <span className="font-mono text-amber-600 font-bold">{v.fuelLevel}% Fuel</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {serviceDueVehicles.length > 0 && (
+            <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <RiToolsLine className="size-4 text-red-600" />
+                  <span className="text-xs font-semibold text-red-900 dark:text-red-200">
+                    Service Due / Maintenance ({serviceDueVehicles.length} vehicles)
+                  </span>
+                </div>
+                <Link href="/admin/maintenance" className="text-[11px] text-red-700 dark:text-red-300 hover:underline">
+                  View Maintenance
+                </Link>
+              </div>
+              <div className="space-y-1.5 pt-1">
+                {serviceDueVehicles.slice(0, 3).map((v) => (
+                  <div key={v.id} className="flex items-center justify-between text-xs">
+                    <span className="font-medium text-foreground">{v.make} {v.model} ({v.plateNumber})</span>
+                    <span className="font-mono text-xs text-red-600">Due: {v.nextMaintenanceDue || "Immediate"}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Today's Operations: Needs Attention */}
       {needsAttention.length > 0 && (
@@ -109,12 +229,18 @@ export default function AdminDashboardPage() {
           <div className="rounded-lg border border-amber-500/30 bg-card overflow-hidden">
             <div className="divide-y">
               {needsAttention.map((res) => {
-                const config = RESERVATION_STATUS_CONFIG[res.status]
+                const config = RESERVATION_STATUS_CONFIG[res.status] || {
+                  label: res.status,
+                  badgeVariant: "neutral",
+                  description: "Operational record",
+                }
                 return (
                   <div key={res.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4">
                     <div className="space-y-0.5">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono text-xs font-semibold text-foreground">{res.id}</span>
+                        <span className="font-mono text-xs font-semibold text-foreground">
+                          {res.reference || res.id}
+                        </span>
                         <StatusBadge status={config.badgeVariant} label={config.label} size="sm" />
                       </div>
                       <p className="text-sm font-medium text-foreground">
@@ -170,10 +296,15 @@ export default function AdminDashboardPage() {
                 </TableRow>
               ) : (
                 todayPickups.map((res) => {
-                  const config = RESERVATION_STATUS_CONFIG[res.status]
+                  const config = RESERVATION_STATUS_CONFIG[res.status] || {
+                    label: res.status,
+                    badgeVariant: "neutral",
+                  }
                   return (
                     <TableRow key={res.id} className="hover:bg-muted/20">
-                      <TableCell className="font-mono text-xs font-semibold">{res.id}</TableCell>
+                      <TableCell className="font-mono text-xs font-semibold">
+                        {res.reference || res.id}
+                      </TableCell>
                       <TableCell>
                         <div className="flex flex-col">
                           <span className="text-sm font-medium">{res.customerName}</span>
@@ -210,9 +341,8 @@ export default function AdminDashboardPage() {
         </div>
       </section>
 
-      {/* Active Rentals & Maintenance quick cards */}
+      {/* Active Rentals Quick Card */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Active Rentals */}
         <section aria-labelledby="active-heading" className="space-y-3">
           <div className="flex items-center justify-between">
             <SectionHeader
@@ -223,7 +353,7 @@ export default function AdminDashboardPage() {
           </div>
           <div className="rounded-lg border bg-card divide-y">
             {activeRentals.length === 0 ? (
-              <div className="p-6 text-center text-xs text-muted-foreground">No active rentals.</div>
+              <div className="p-6 text-center text-xs text-muted-foreground">No active rentals currently on road.</div>
             ) : (
               activeRentals.map((res) => (
                 <div key={res.id} className="flex items-center justify-between p-3.5 gap-4">
@@ -246,51 +376,40 @@ export default function AdminDashboardPage() {
           </div>
         </section>
 
-        {/* Maintenance Alerts */}
+        {/* Fleet Maintenance Status Quick Card */}
         <section aria-labelledby="maintenance-heading" className="space-y-3">
           <div className="flex items-center justify-between">
             <SectionHeader
-              title="Maintenance Alerts"
-              badge={overdueMaintenances.length > 0 ? (
-                <StatusBadge status="error" label={`${overdueMaintenances.length} Urgent`} size="sm" />
+              title="Fleet Status Overview"
+              badge={fleetSummary.maintenance > 0 ? (
+                <StatusBadge status="warning" label={`${fleetSummary.maintenance} in Bay`} size="sm" />
               ) : (
                 <StatusBadge status="neutral" label="All Clear" size="sm" />
               )}
             />
-            <Link href="/admin/maintenance" className="text-xs font-medium text-primary hover:underline">View all</Link>
+            <Link href="/admin/fleet" className="text-xs font-medium text-primary hover:underline">View fleet</Link>
           </div>
           <div className="rounded-lg border bg-card divide-y">
-            {overdueMaintenances.length === 0 ? (
-              <div className="p-6 text-center text-xs text-muted-foreground flex flex-col items-center gap-2">
-                <RiCheckboxCircleLine className="size-5 text-emerald-500" />
-                <span>No overdue maintenance items.</span>
-              </div>
-            ) : (
-              overdueMaintenances.map((m) => (
-                <div key={m.id} className="flex items-center justify-between p-3.5 gap-4">
-                  <div className="flex items-start gap-3 min-w-0">
-                    <div className="mt-0.5 p-1.5 rounded-md bg-red-500/10 text-red-600 shrink-0">
-                      <RiToolsLine className="size-3.5" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold text-foreground truncate">{m.vehicleName}</p>
-                      <p className="text-[11px] text-muted-foreground">{m.typeLabel}</p>
-                      <div className="flex items-center gap-1 text-[11px]">
-                        <RiTimeLine className="size-3 text-muted-foreground" />
-                        <span className="text-red-600 dark:text-red-400 font-medium capitalize">{m.status}</span>
-                        <span className="text-muted-foreground">· Due {m.scheduledDate}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <Link href="/admin/maintenance">
-                    <Button size="xs" variant="ghost" className="text-xs shrink-0">View</Button>
-                  </Link>
-                </div>
-              ))
-            )}
+            <div className="p-4 flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Available for immediate booking</span>
+              <span className="text-sm font-semibold text-emerald-600">{fleetSummary.available} vehicles</span>
+            </div>
+            <div className="p-4 flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Under maintenance / service bay</span>
+              <span className="text-sm font-semibold text-amber-600">{fleetSummary.maintenance} vehicles</span>
+            </div>
+            <div className="p-4 flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Currently on active customer rentals</span>
+              <span className="text-sm font-semibold text-primary">{fleetSummary.rented} vehicles</span>
+            </div>
+            <div className="p-4 flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Reserved for upcoming confirmed trips</span>
+              <span className="text-sm font-semibold text-sky-600">{fleetSummary.reserved} vehicles</span>
+            </div>
           </div>
         </section>
       </div>
     </div>
+    </DashboardRealtimeWrapper>
   )
 }

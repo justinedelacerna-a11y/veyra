@@ -5,7 +5,7 @@ import { CustomerShell } from "@/components/shell/customer"
 import { PageContainer } from "@/components/layout"
 import { StatusBadge } from "@/components/common/status-badge"
 import { Button } from "@/components/ui/button"
-import { MOCK_LOCATIONS } from "@/lib/mock/locations"
+import { getLiveLocations } from "@/features/search/server/locations-repository"
 import {
   RiMapPin2Line,
   RiTimeLine,
@@ -19,37 +19,34 @@ import {
 } from "@remixicon/react"
 
 export const metadata: Metadata = {
-  title: "Pickup Hubs & Locations — Veyra",
+  title: "Operating Location — Butuan City, Agusan del Norte | Veyra",
   description:
-    "Find a Veyra vehicle hub near you. Airport terminal valet bays and city center stations across Mindanao and Visayas with 24/7 contactless handover.",
+    "Veyra serves customers in Butuan City, Agusan del Norte, Philippines. Local operations hub with prompt vehicle handover, verified mechanical standards, and transparent rental pricing.",
 }
 
 const hubFeatures = [
   {
-    icon: RiFlightTakeoffLine,
-    title: "Airport Valet Bays",
-    description:
-      "Dedicated kerbside valet zones at arrivals. Walk out, hand over your documents, drive away — no counter queue required.",
-  },
-  {
     icon: RiShieldCheckLine,
     title: "Verified Handover Protocol",
     description:
-      "Every pickup follows a structured inspection checklist with digital sign-off. Condition recorded before you depart.",
+      "Every pickup in Butuan City follows a structured inspection checklist with digital sign-off. Condition and odometer recorded before departure.",
+  },
+  {
+    icon: RiBuilding4Line,
+    title: "Local Operations Hub",
+    description:
+      "Centrally based in Butuan City, Agusan del Norte. Rapid key release and smooth check-in without counter queues.",
   },
   {
     icon: RiCustomerService2Line,
-    title: "24/7 Concierge Line",
+    title: "24/7 Concierge Hotline",
     description:
-      "Reach a Veyra operations agent at any hour. Breakdown assistance, reservation changes, and remote support included.",
+      "Reach our local operations desk directly at any hour. Roadside recovery, itinerary updates, and prompt support included.",
   },
 ]
 
-export default function LocationsPage() {
-  const airportHubs = MOCK_LOCATIONS.filter((l) =>
-    l.type.includes("Airport")
-  )
-  const cityHubs = MOCK_LOCATIONS.filter((l) => !l.type.includes("Airport"))
+export default async function LocationsPage() {
+  const locations = await getLiveLocations()
 
   return (
     <CustomerShell>
@@ -60,22 +57,19 @@ export default function LocationsPage() {
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge
                 status="success"
-                label={`${MOCK_LOCATIONS.length} Active Hubs`}
+                label="Butuan City Barangay Network"
                 size="sm"
               />
-              <StatusBadge
-                status="neutral"
-                label="Airport & City Delivery"
-                size="sm"
-              />
+              <span className="text-xs text-muted-foreground">
+                Butuan City, Agusan del Norte, Philippines
+              </span>
             </div>
             <h1 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-foreground">
-              Pickup Hubs &amp; Locations
+              Pickup & Return Stations in Butuan City
             </h1>
             <p className="text-sm sm:text-base text-muted-foreground leading-relaxed max-w-2xl">
-              Veyra operates dedicated pickup bays at major arrival terminals
-              and premium city-center locations. Key handover is contactless,
-              documented, and takes under three minutes.
+              Veyra operates dedicated car-rental pickup and return stations across official barangays of Butuan City, Agusan del Norte.
+              Handover is punctual, fully documented, and inspected before every trip.
             </p>
           </div>
 
@@ -104,47 +98,34 @@ export default function LocationsPage() {
             })}
           </div>
 
-          {/* Airport Hubs */}
-          <section aria-labelledby="airport-hubs-heading" className="space-y-5">
+          {/* Active Operating Locations */}
+          <section aria-labelledby="operations-hub-heading" className="space-y-5">
             <div className="flex items-center gap-3">
               <h2
-                id="airport-hubs-heading"
+                id="operations-hub-heading"
                 className="font-heading text-xl font-bold tracking-tight text-foreground flex items-center gap-2"
               >
-                <RiFlightTakeoffLine className="size-5 text-primary" />
-                Airport Terminal Hubs
+                <RiBuilding4Line className="size-5 text-primary" />
+                Butuan City Barangay Hubs ({locations.length})
               </h2>
               <StatusBadge
                 status="success"
-                label="24/7 Continuous Handover"
+                label="Active Hubs"
                 size="sm"
               />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-              {airportHubs.map((loc) => (
+              {locations.map((loc) => (
                 <LocationCard key={loc.id} loc={loc} />
               ))}
-            </div>
-          </section>
-
-          {/* City Center Hubs */}
-          <section aria-labelledby="city-hubs-heading" className="space-y-5">
-            <div className="flex items-center gap-3">
-              <h2
-                id="city-hubs-heading"
-                className="font-heading text-xl font-bold tracking-tight text-foreground flex items-center gap-2"
-              >
-                <RiBuilding4Line className="size-5 text-primary" />
-                City Center Stations
-              </h2>
-              <StatusBadge status="info" label="Extended Hours" size="sm" />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-              {cityHubs.map((loc) => (
-                <LocationCard key={loc.id} loc={loc} />
-              ))}
+              {locations.length === 0 && (
+                <div className="p-8 text-center border rounded-xl bg-card">
+                  <p className="text-sm text-muted-foreground">
+                    Butuan City Operations Hub active. Refresh or contact concierge.
+                  </p>
+                </div>
+              )}
             </div>
           </section>
 
@@ -152,11 +133,10 @@ export default function LocationsPage() {
           <div className="rounded-2xl border bg-card p-8 sm:p-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
             <div className="space-y-1.5">
               <p className="font-heading text-lg font-semibold text-foreground">
-                Need a pickup point not listed?
+                Need a specific pickup arrangement in Butuan City?
               </p>
               <p className="text-sm text-muted-foreground">
-                Contact our concierge desk to arrange a custom delivery
-                location or long-term fleet station assignment.
+                Contact our concierge desk to coordinate custom handover timing or long-term vehicle leasing.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 shrink-0">
@@ -169,7 +149,7 @@ export default function LocationsPage() {
               <Link href="/vehicles">
                 <Button size="sm" className="gap-2">
                   <RiCarLine className="size-4" data-icon="inline-start" />
-                  <span>Browse Fleet</span>
+                  <span>Browse Available Cars</span>
                 </Button>
               </Link>
             </div>
@@ -180,18 +160,12 @@ export default function LocationsPage() {
   )
 }
 
+import { LocationHub } from "@/types"
+
 // ─── Location Card ─────────────────────────────────────────────────────────────
 
 interface LocationCardProps {
-  loc: {
-    id: string
-    name: string
-    city: string
-    type: string
-    address: string
-    operatingHours: string
-    pickupAvailable: boolean
-  }
+  loc: LocationHub
 }
 
 function LocationCard({ loc }: LocationCardProps) {
@@ -208,17 +182,17 @@ function LocationCard({ loc }: LocationCardProps) {
               <Icon className="size-4" />
             </div>
             <div>
-              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                {loc.type}
+              <p className="text-[11px] font-medium text-primary uppercase tracking-wider">
+                {loc.barangay ? `Barangay ${loc.barangay}` : loc.type}
               </p>
               <p className="text-sm font-semibold text-foreground leading-tight">
-                {loc.city}
+                {loc.city}, {loc.province || "Agusan del Norte"}
               </p>
             </div>
           </div>
           <StatusBadge
             status={loc.pickupAvailable ? "success" : "neutral"}
-            label={loc.pickupAvailable ? "Open" : "Closed"}
+            label={loc.pickupAvailable ? "Active Hub" : "Closed"}
             size="sm"
           />
         </div>
@@ -246,14 +220,11 @@ function LocationCard({ loc }: LocationCardProps) {
             variant="outline"
             size="sm"
             className="w-full gap-1.5"
-            aria-label={`Find vehicles at ${loc.name}`}
+            aria-label={`Find vehicles in Barangay ${loc.barangay || loc.name}, Butuan City`}
           >
             <RiCarLine className="size-3.5" data-icon="inline-start" />
-            <span>Find Cars Here</span>
-            <RiArrowRightLine
-              className="size-3.5 ml-auto"
-              data-icon="inline-end"
-            />
+            <span>View Available Vehicles</span>
+            <RiArrowRightLine className="size-3.5" data-icon="inline-end" />
           </Button>
         </Link>
       </div>

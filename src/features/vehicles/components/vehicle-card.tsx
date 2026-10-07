@@ -9,11 +9,12 @@ import {
   RiSuitcaseLine,
   RiGasStationLine,
   RiFlashlightLine,
-  RiSteeringLine,
   RiArrowRightLine,
   RiCheckLine,
   RiStarFill,
+  RiMapPinLine,
 } from "@remixicon/react"
+import { VehicleImage } from "@/components/ui/vehicle-image"
 import { cn } from "@/lib/utils"
 
 export interface VehicleCardProps {
@@ -34,6 +35,8 @@ export function VehicleCard({
     searchParamsString ? `?${searchParamsString}` : ""
   }`
 
+  const primaryPhoto = vehicle.primaryImage || vehicle.images?.[0] || null
+
   return (
     <Card
       className={cn(
@@ -44,7 +47,7 @@ export function VehicleCard({
       <div>
         {/* Visual Vehicle Showcase Area */}
         <Link href={detailHref} className="block relative focus-visible:outline-hidden">
-          <div className="relative flex h-48 w-full items-center justify-center overflow-hidden bg-gradient-to-b from-muted/50 via-muted/20 to-card p-6 border-b border-border/60">
+          <div className="relative h-48 w-full overflow-hidden border-b border-border/60">
             {/* Category / Badge overlay */}
             <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5">
               {vehicle.badge && (
@@ -69,15 +72,14 @@ export function VehicleCard({
               </span>
             </div>
 
-            {/* Stylized Vehicle Silhouette / Geometry Placeholder */}
-            <div className="relative flex flex-col items-center justify-center transition-transform duration-300 group-hover:scale-105">
-              <div className="flex size-24 items-center justify-center rounded-2xl bg-primary/10 text-primary/80 group-hover:text-primary transition-colors">
-                <RiSteeringLine className="size-12" />
-              </div>
-              <div className="mt-2 text-[11px] font-mono font-semibold tracking-wider uppercase text-muted-foreground/80">
-                {vehicle.category} • {vehicle.transmission}
-              </div>
-            </div>
+            <VehicleImage
+              src={primaryPhoto}
+              alt={`${vehicle.year} ${vehicle.make} ${vehicle.model} - Veyra rental vehicle`}
+              aspectRatio="none"
+              category={vehicle.category}
+              containerClassName="h-48 w-full"
+              className="group-hover:scale-105 transition-transform duration-500"
+            />
           </div>
         </Link>
 
@@ -94,6 +96,10 @@ export function VehicleCard({
               {vehicle.model}
             </CardTitle>
           </Link>
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground pt-0.5">
+            <RiMapPinLine className="size-3 text-primary shrink-0" />
+            <span className="truncate">Stationed at Brgy. {vehicle.barangay || "Libertad"}, Butuan City</span>
+          </div>
         </CardHeader>
 
         {/* Specs Grid */}

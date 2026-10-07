@@ -4,7 +4,7 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
-import { MOCK_LOCATIONS } from "@/lib/mock/locations"
+import type { LocationHub } from "@/types"
 import {
   RiMapPinLine,
   RiCalendarLine,
@@ -12,29 +12,59 @@ import {
   RiArrowRightLine,
   RiCheckboxCircleLine,
   RiAlertLine,
-  RiRepeatLine,
 } from "@remixicon/react"
 import { cn } from "@/lib/utils"
 
 export interface RentalSearchProps {
   className?: string
   initialLocationId?: string
+  locations?: LocationHub[]
 }
 
 export function RentalSearch({
   className,
   initialLocationId,
+  locations,
 }: RentalSearchProps) {
   const router = useRouter()
 
+  const [internalLocations, setInternalLocations] = React.useState<LocationHub[]>(locations || [])
+  const [locationsLoading, setLocationsLoading] = React.useState(!locations || locations.length === 0)
+
+  React.useEffect(() => {
+    if (locations && locations.length > 0) return
+
+    let cancelled = false
+    fetch("/api/locations")
+      .then((res) => res.json())
+      .then((data: { locations?: LocationHub[] }) => {
+        if (!cancelled && data.locations && data.locations.length > 0) {
+          setInternalLocations(data.locations)
+          setLocationsLoading(false)
+        }
+      })
+      .catch((err) => {
+        console.error("[rental-search] error loading locations:", err)
+        if (!cancelled) setLocationsLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [locations])
+
+  const activeLocations = locations && locations.length > 0 ? locations : internalLocations
+
   // Form states with sensible defaults
-  const [pickupLocation, setPickupLocation] = React.useState(
-    initialLocationId ?? MOCK_LOCATIONS[0].id
-  )
-  const [returnLocation, setReturnLocation] = React.useState(
-    initialLocationId ?? MOCK_LOCATIONS[0].id
-  )
+  const [pickupLocation, setPickupLocation] = React.useState(initialLocationId ?? "")
+  const [returnLocation, setReturnLocation] = React.useState(initialLocationId ?? "")
   const [sameLocation, setSameLocation] = React.useState(true)
+
+  const effectivePickup = pickupLocation || activeLocations[0]?.id || ""
+  const effectiveReturn = sameLocation ? effectivePickup : (returnLocation || activeLocations[0]?.id || "")
+
+  const selectedPickupObj = activeLocations.find((l) => l.id === effectivePickup) || activeLocations[0]
+  const selectedReturnObj = activeLocations.find((l) => l.id === effectiveReturn) || selectedPickupObj
 
   // Default dates: tomorrow to +3 days
   const today = new Date()
@@ -57,13 +87,16 @@ export function RentalSearch({
     e.preventDefault()
     setError(null)
 
+    const actualPickup = effectivePickup
+    const actualReturn = effectiveReturn
+
     // Validation
-    if (!pickupLocation) {
+    if (!actualPickup) {
       setError("Please select a pickup location.")
       return
     }
 
-    if (!sameLocation && !returnLocation) {
+    if (!actualReturn) {
       setError("Please select a return location.")
       return
     }
@@ -80,9 +113,8 @@ export function RentalSearch({
 
     // Simulate short UI navigation transition
     setTimeout(() => {
-      const actualReturn = sameLocation ? pickupLocation : returnLocation
       const params = new URLSearchParams({
-        pickup: pickupLocation,
+        pickup: actualPickup,
         returnLoc: actualReturn,
         from: pickupDate,
         fromTime: pickupTime,
@@ -101,68 +133,64 @@ export function RentalSearch({
       )}
     >
       <form onSubmit={handleSearch} className="space-y-4">
-        {/* Top Control Bar: Trip Type & Return Toggle */}
+        {/* Top Control Bar: Localized Butuan City Service */}
         <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-border/60">
           <div className="flex items-center gap-2">
             <span className="flex size-6 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <RiRepeatLine className="size-3.5" />
+              <RiMapPinLine className="size-3.5" />
             </span>
             <span className="text-xs font-semibold text-foreground">
-              Round-Trip / Flexible Rental
+              Local Car Rental • Butuan City, Agusan del Norte
             </span>
           </div>
 
-          <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground select-none">
+          <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
             <input
               type="checkbox"
-              checked={sameLocation}
-              onChange={(e) => {
-                setSameLocation(e.target.checked)
-                if (e.target.checked) {
-                  setReturnLocation(pickupLocation)
-                }
-              }}
-              className="size-4 rounded border-input accent-primary transition-colors cursor-pointer"
+              checked={!sameLocation}
+              onChange={(e) => setSameLocation(!e.target.checked)}
+              className="rounded border-input text-primary focus:ring-primary size-3.5"
             />
-            <span>Return to same location</span>
+            <span>Different return barangay</span>
           </label>
         </div>
 
         {/* Primary Input Grid */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-12">
           {/* Pickup Location */}
-          <div
-            className={cn(
-              "flex flex-col gap-1.5",
-              sameLocation ? "lg:col-span-4" : "lg:col-span-3"
-            )}
-          >
+          <div className={cn("flex flex-col gap-1.5", sameLocation ? "lg:col-span-4" : "lg:col-span-3")}>
             <label
               htmlFor="search-pickup-loc"
               className="text-xs font-semibold text-foreground flex items-center gap-1.5"
             >
               <RiMapPinLine className="size-3.5 text-primary" />
-              <span>Pickup Hub</span>
+              <span>Pickup Location</span>
             </label>
             <div className="relative">
               <select
                 id="search-pickup-loc"
-                value={pickupLocation}
+                value={effectivePickup}
                 onChange={(e) => {
                   setPickupLocation(e.target.value)
-                  if (sameLocation) {
-                    setReturnLocation(e.target.value)
-                  }
+                  if (sameLocation) setReturnLocation(e.target.value)
                 }}
                 className="w-full h-11 rounded-lg border border-input bg-background/80 px-3 text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors cursor-pointer"
               >
-                {MOCK_LOCATIONS.map((loc) => (
+                {activeLocations.map((loc) => (
                   <option key={loc.id} value={loc.id}>
-                    {loc.city} — {loc.name}
+                    Barangay {loc.barangay || loc.name}
                   </option>
                 ))}
+                {activeLocations.length === 0 && (
+                  <option value="" disabled>
+                    {locationsLoading ? "Loading hubs..." : "Barangay Libertad"}
+                  </option>
+                )}
               </select>
             </div>
+            <span className="text-[11px] text-muted-foreground truncate" title={selectedPickupObj ? `Barangay ${selectedPickupObj.barangay || selectedPickupObj.name}, Butuan City, Agusan del Norte` : ""}>
+              Barangay {selectedPickupObj?.barangay || "Libertad"}, Butuan City, Agusan del Norte
+            </span>
           </div>
 
           {/* Return Location (only if different) */}
@@ -173,20 +201,28 @@ export function RentalSearch({
                 className="text-xs font-semibold text-foreground flex items-center gap-1.5"
               >
                 <RiMapPinLine className="size-3.5 text-muted-foreground" />
-                <span>Return Hub</span>
+                <span>Return Location</span>
               </label>
               <select
                 id="search-return-loc"
-                value={returnLocation}
+                value={effectiveReturn}
                 onChange={(e) => setReturnLocation(e.target.value)}
                 className="w-full h-11 rounded-lg border border-input bg-background/80 px-3 text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors cursor-pointer"
               >
-                {MOCK_LOCATIONS.map((loc) => (
+                {activeLocations.map((loc) => (
                   <option key={loc.id} value={loc.id}>
-                    {loc.city} — {loc.name}
+                    Barangay {loc.barangay || loc.name}
                   </option>
                 ))}
+                {activeLocations.length === 0 && (
+                  <option value="" disabled>
+                    {locationsLoading ? "Loading hubs..." : "Barangay Ampayon"}
+                  </option>
+                )}
               </select>
+              <span className="text-[11px] text-muted-foreground truncate" title={selectedReturnObj ? `Barangay ${selectedReturnObj.barangay || selectedReturnObj.name}, Butuan City, Agusan del Norte` : ""}>
+                Barangay {selectedReturnObj?.barangay || "Ampayon"}, Butuan City, Agusan del Norte
+              </span>
             </div>
           )}
 
@@ -297,15 +333,15 @@ export function RentalSearch({
         <div className="pt-2 flex flex-wrap items-center gap-x-6 gap-y-2 text-[11px] text-muted-foreground border-t border-border/40">
           <div className="flex items-center gap-1.5">
             <RiCheckboxCircleLine className="size-3.5 text-primary" />
+            <span>Veyra serves customers in Butuan City, Agusan del Norte</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <RiCheckboxCircleLine className="size-3.5 text-primary" />
             <span>Guaranteed exact model & year</span>
           </div>
           <div className="flex items-center gap-1.5">
             <RiCheckboxCircleLine className="size-3.5 text-primary" />
             <span>Free cancellation up to 24h prior</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <RiCheckboxCircleLine className="size-3.5 text-primary" />
-            <span>All fees & basic insurance included</span>
           </div>
         </div>
       </form>

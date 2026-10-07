@@ -29,20 +29,18 @@ const isProtectedRoute = createRouteMatcher([
 // Default export satisfies Next.js 16's `proxy` function convention.
 export default clerkMiddleware(async (auth, req) => {
   if (isProtectedRoute(req)) {
-    await auth.protect()
+    const signInUrl = new URL("/sign-in", req.url)
+    signInUrl.searchParams.set("redirect_url", req.nextUrl.pathname)
+    await auth.protect({ unauthenticatedUrl: signInUrl.toString() })
   }
 })
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static  (static files)
-     * - _next/image   (image optimization)
-     * - favicon.ico, sitemap.xml, robots.txt (metadata files)
-     * - Common static asset extensions
-     */
-    "/((?!_next/static|_next/image|favicon\\.ico|sitemap\\.xml|robots\\.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?|ttf|eot)$).*)",
+    // Skip Next.js internals and all static files, unless found in search params
+    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    // Always run for API routes
     "/(api|trpc)(.*)",
+    "/__clerk/:path*",
   ],
 }

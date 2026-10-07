@@ -10,10 +10,11 @@ import {
   BookingStatus,
   DriverDetails,
   DriverFormErrors,
+  ExtraOption,
+  LiveQuoteResult,
 } from "../types"
-import { MOCK_VEHICLES } from "@/lib/mock/vehicles"
-import { MOCK_LOCATIONS } from "@/lib/mock/locations"
 import { calculateBookingPricing } from "../lib/pricing"
+import type { Vehicle, LocationHub } from "@/types"
 
 const STORAGE_KEY = "veyra_booking_context_v2"
 const LEGACY_STORAGE_KEY = "veyra_booking_draft_v1"
@@ -27,6 +28,14 @@ const DEFAULT_DRIVER: DriverDetails = {
   licenseNumber: "",
   licenseCountry: "Philippines",
   specialRequests: "",
+}
+
+/**
+ * Detect whether an ID refers to a real database UUID.
+ * Real DB IDs are standard UUID v4 format.
+ */
+function isRealUuid(id: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
 }
 
 const BookingContext = React.createContext<BookingContextValue | undefined>(
@@ -51,10 +60,8 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
   const initialDraft = React.useCallback((): BookingDraft => {
     let persistedContext: Partial<PersistedBookingContext> | null = null
 
-    // Check sessionStorage if running on client
     if (typeof window !== "undefined") {
       try {
-        // Backward compatibility: Purge legacy storage key containing sensitive fields
         const legacyData = sessionStorage.getItem(LEGACY_STORAGE_KEY)
         if (legacyData) {
           sessionStorage.removeItem(LEGACY_STORAGE_KEY)
@@ -63,7 +70,6 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         const saved = sessionStorage.getItem(STORAGE_KEY) || legacyData
         if (saved) {
           const parsed = JSON.parse(saved) as Record<string, unknown>
-          // Strictly extract ONLY non-sensitive navigation, itinerary, and preference fields
           persistedContext = {
             vehicleId:
               typeof parsed.vehicleId === "string" ? parsed.vehicleId : undefined,
@@ -115,7 +121,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
           }
         }
       } catch {
-        // Fallback to query or defaults on parse/quota errors
+        // Fallback on storage errors
       }
     }
 
@@ -127,16 +133,15 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
 
     const formatDate = (d: Date) => d.toISOString().split("T")[0]
 
-    // Priority: URL Query Parameters > Safe Persisted Context > Default Values
     const vehicleId =
       searchParams.get("vehicleId") ||
       persistedContext?.vehicleId ||
-      MOCK_VEHICLES[0].id
+      ""
 
     const pickupLocationId =
       searchParams.get("pickup") ||
       persistedContext?.pickupLocationId ||
-      MOCK_LOCATIONS[0].id
+      ""
 
     const returnLocationId =
       searchParams.get("returnLoc") ||
@@ -164,7 +169,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       "10:00"
 
     const selectedExtras =
-      persistedContext?.selectedExtras || ["extra-zero-excess"]
+      persistedContext?.selectedExtras || []
 
     const paymentMethod =
       persistedContext?.paymentMethod || "card"
@@ -187,7 +192,6 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       returnDate,
       returnTime,
       selectedExtras,
-      // SENSITIVE DRIVER INFORMATION: ALWAYS initialized in runtime memory ONLY!
       driver: { ...DEFAULT_DRIVER },
       paymentMethod,
       agreedToTerms,
@@ -200,7 +204,238 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
   const [driverErrors, setDriverErrors] = React.useState<DriverFormErrors>({})
   const [status, setStatus] = React.useState<BookingStatus>("idle")
 
-  // Sync ONLY safe, non-sensitive booking context to sessionStorage
+  // --- Live vehicle state ---
+  const [liveVehicle, setLiveVehicle] = React.useState<Vehicle | null>(null)
+  const [vehicleLoading, setVehicleLoading] = React.useState(false)
+
+  React.useEffect(() => {
+    const vid = draft.vehicleId
+    if (!isRealUuid(vid)) {
+      queueMicrotask(() => setLiveVehicle(null))
+      return
+    }
+
+    let cancelled = false
+    queueMicrotask(() => {
+      if (!cancelled) setVehicleLoading(true)
+    })
+
+    fetch(`/api/vehicles/${vid}`)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json()
+      })
+      .then((data: { vehicle?: Vehicle }) => {
+        if (!cancelled && data.vehicle) {
+          setLiveVehicle(data.vehicle)
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.error("[booking-context] Failed to load live vehicle:", err)
+          setLiveVehicle(null)
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setVehicleLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [draft.vehicleId])
+
+  // --- Live locations state ---
+  const [liveLocations, setLiveLocations] = React.useState<LocationHub[]>([])
+
+  React.useEffect(() => {
+    let cancelled = false
+
+    fetch("/api/locations")
+      .then((res) => res.json())
+      .then((data: { locations?: LocationHub[] }) => {
+        if (!cancelled && data.locations && data.locations.length > 0) {
+          setLiveLocations(data.locations)
+
+          // If draft doesn't have a pickup location or invalid, sync to first active hub
+          setDraft((prev) => {
+            const hasPickup = data.locations!.some((l) => l.id === prev.pickupLocationId)
+            if (!hasPickup) {
+              return {
+                ...prev,
+                pickupLocationId: data.locations![0].id,
+                returnLocationId: prev.returnLocationId ? prev.returnLocationId : data.locations![0].id,
+              }
+            }
+            return prev
+          })
+        }
+      })
+      .catch((err) => {
+        console.error("[booking-context] error loading live locations:", err)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // --- Live extras state ---
+  const [liveExtras, setLiveExtras] = React.useState<ExtraOption[]>([])
+
+  React.useEffect(() => {
+    let cancelled = false
+
+    fetch("/api/extras")
+      .then((res) => res.json())
+      .then((data: { extras?: ExtraOption[] }) => {
+        if (!cancelled && data.extras && data.extras.length > 0) {
+          setLiveExtras(data.extras)
+        }
+      })
+      .catch((err) => {
+        console.error("[booking-context] error loading live extras:", err)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Resolve locations from live Supabase data
+  const locations = liveLocations
+
+  const pickupHub = React.useMemo((): LocationHub => {
+    const found = locations.find((l) => l.id === draft.pickupLocationId)
+    return (
+      found ||
+      locations[0] || {
+        id: draft.pickupLocationId || "10c00000-0000-0000-0000-000000000001",
+        name: "Barangay Libertad Hub",
+        barangay: "Libertad",
+        city: "Butuan City",
+        province: "Agusan del Norte",
+        type: "City Center" as const,
+        address: "National Highway, Brgy. Libertad, Butuan City, Agusan del Norte",
+        operatingHours: "08:00 - 20:00 Daily",
+        pickupAvailable: true,
+      }
+    )
+  }, [draft.pickupLocationId, locations])
+
+  const returnHub = React.useMemo((): LocationHub => {
+    const found = locations.find((l) => l.id === draft.returnLocationId)
+    return found || pickupHub
+  }, [draft.returnLocationId, locations, pickupHub])
+
+  // Resolve active vehicle - NEVER falls back to MOCK_VEHICLES
+  const vehicle = React.useMemo((): Vehicle => {
+    const vid = draft.vehicleId
+    if (liveVehicle) return liveVehicle
+    if (vehicleLoading) {
+      return {
+        id: vid,
+        make: "Loading...",
+        model: "Vehicle Details",
+        year: new Date().getFullYear(),
+        category: "sedan",
+        transmission: "Automatic",
+        fuelType: "Petrol",
+        seats: 0,
+        luggage: 0,
+        dailyRate: 0,
+        currency: "₱",
+        features: [],
+        available: true,
+      }
+    }
+    // Controlled empty/unavailable state - NEVER falls back to MOCK_VEHICLES
+    return {
+      id: vid || "unselected",
+      make: vid ? "Vehicle Unavailable" : "No Vehicle Selected",
+      model: vid ? "Please choose another model" : "Please select from our fleet",
+      year: new Date().getFullYear(),
+      category: "sedan",
+      transmission: "Automatic",
+      fuelType: "Petrol",
+      seats: 4,
+      luggage: 2,
+      dailyRate: 0,
+      currency: "₱",
+      features: [],
+      available: false,
+    }
+  }, [draft.vehicleId, liveVehicle, vehicleLoading])
+
+  // --- Live Quote Calculation ---
+  const [liveQuote, setLiveQuote] = React.useState<LiveQuoteResult | null>(null)
+  const [quoteLoading, setQuoteLoading] = React.useState(false)
+  const [quoteError, setQuoteError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    const vid = draft.vehicleId
+    if (!isRealUuid(vid) || !pickupHub.id || !returnHub.id) {
+      queueMicrotask(() => setLiveQuote(null))
+      return
+    }
+
+    let cancelled = false
+    queueMicrotask(() => {
+      if (!cancelled) {
+        setQuoteLoading(true)
+        setQuoteError(null)
+      }
+    })
+
+    const pickupIso = `${draft.pickupDate}T${draft.pickupTime}:00Z`
+    const returnIso = `${draft.returnDate}T${draft.returnTime}:00Z`
+
+    fetch("/api/quote", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        vehicleId: vid,
+        pickupLocationId: pickupHub.id,
+        returnLocationId: returnHub.id,
+        pickupAt: pickupIso,
+        returnAt: returnIso,
+        selectedExtras: draft.selectedExtras,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data: { success: boolean; quote?: LiveQuoteResult; message?: string }) => {
+        if (cancelled) return
+        if (data.success && data.quote) {
+          setLiveQuote(data.quote)
+          setQuoteError(null)
+        } else {
+          setQuoteError(data.message || "Unable to calculate quote for selected dates.")
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setQuoteError(err instanceof Error ? err.message : "Failed to load live quote.")
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setQuoteLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    draft.vehicleId,
+    pickupHub.id,
+    returnHub.id,
+    draft.pickupDate,
+    draft.pickupTime,
+    draft.returnDate,
+    draft.returnTime,
+    draft.selectedExtras,
+  ])
+
+  // Sync safe context to sessionStorage
   React.useEffect(() => {
     if (typeof window !== "undefined") {
       try {
@@ -225,29 +460,9 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     }
   }, [draft])
 
-  // Resolve active vehicle
-  const vehicle = React.useMemo(() => {
-    return (
-      MOCK_VEHICLES.find((v) => v.id === draft.vehicleId) || MOCK_VEHICLES[0]
-    )
-  }, [draft.vehicleId])
-
-  // Resolve locations
-  const pickupHub = React.useMemo(() => {
-    return (
-      MOCK_LOCATIONS.find((l) => l.id === draft.pickupLocationId) ||
-      MOCK_LOCATIONS[0]
-    )
-  }, [draft.pickupLocationId])
-
-  const returnHub = React.useMemo(() => {
-    return (
-      MOCK_LOCATIONS.find((l) => l.id === draft.returnLocationId) || pickupHub
-    )
-  }, [draft.returnLocationId, pickupHub])
-
   // Calculate rental duration in whole days
   const rentalDays = React.useMemo(() => {
+    if (liveQuote) return liveQuote.rentalDays
     try {
       const start = new Date(`${draft.pickupDate}T${draft.pickupTime}`)
       const end = new Date(`${draft.returnDate}T${draft.returnTime}`)
@@ -257,12 +472,15 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     } catch {
       return 3
     }
-  }, [draft.pickupDate, draft.pickupTime, draft.returnDate, draft.returnTime])
+  }, [liveQuote, draft.pickupDate, draft.pickupTime, draft.returnDate, draft.returnTime])
 
-  // Centralized pricing calculation
+  // Pricing: ALWAYS use live quote pricing when available!
   const pricing = React.useMemo(() => {
-    return calculateBookingPricing(vehicle, rentalDays, draft.selectedExtras)
-  }, [vehicle, rentalDays, draft.selectedExtras])
+    if (liveQuote?.pricing) {
+      return liveQuote.pricing
+    }
+    return calculateBookingPricing(vehicle, rentalDays, draft.selectedExtras, liveExtras)
+  }, [liveQuote, vehicle, rentalDays, draft.selectedExtras, liveExtras])
 
   // Update draft helper
   const updateDraft = React.useCallback((updates: Partial<BookingDraft>) => {
@@ -280,14 +498,13 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     })
   }, [])
 
-  // Update driver details field (runtime in-memory only)
+  // Update driver details field
   const updateDriver = React.useCallback(
     (field: keyof DriverDetails, value: string) => {
       setDraft((prev) => ({
         ...prev,
         driver: { ...prev.driver, [field]: value },
       }))
-      // Clear field error on edit
       setDriverErrors((prev) => ({ ...prev, [field]: undefined }))
     },
     []
@@ -345,17 +562,80 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     return draft.agreedToTerms && draft.agreedToCancellation
   }, [draft.agreedToTerms, draft.agreedToCancellation])
 
-  // Complete booking demo
-  const completeBooking = React.useCallback((): string => {
+  // Complete booking: Creates live reservation in Supabase when vehicleId is real UUID
+  const completeBooking = React.useCallback(async (): Promise<string> => {
+    const vid = draft.vehicleId
+
+    if (isRealUuid(vid)) {
+      setStatus("submitting")
+
+      const pickupIso = `${draft.pickupDate}T${draft.pickupTime}:00Z`
+      const returnIso = `${draft.returnDate}T${draft.returnTime}:00Z`
+
+      const res = await fetch("/api/reservations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vehicleId: vid,
+          pickupLocationId: pickupHub.id,
+          returnLocationId: returnHub.id,
+          pickupAt: pickupIso,
+          returnAt: returnIso,
+          selectedExtras: draft.selectedExtras,
+          quoteId: liveQuote?.quoteId,
+          driver: draft.driver,
+          paymentMethod: draft.paymentMethod,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok || !data.success) {
+        setStatus("error")
+        throw new Error(data.message || "Failed to create reservation.")
+      }
+
+      const reference = data.reference
+      const reservationId = data.reservationId
+      updateDraft({ bookingReference: reference })
+
+      // For online payment methods (Card, E-Wallet), create checkout session
+      if (draft.paymentMethod === "card" || draft.paymentMethod === "e-wallet") {
+        try {
+          const checkoutRes = await fetch("/api/checkout", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              reservationId,
+              paymentMethod: draft.paymentMethod,
+            }),
+          })
+          const checkoutData = await checkoutRes.json()
+          if (checkoutRes.ok && checkoutData.success && checkoutData.checkoutUrl) {
+            if (typeof window !== "undefined") {
+              window.location.href = checkoutData.checkoutUrl
+              return reference
+            }
+          }
+        } catch (err) {
+          console.error("[booking-context] Checkout session creation failed:", err)
+        }
+      }
+
+      setStatus("confirmed")
+      return reference
+    }
+
+    // Legacy mock slug fallback
     const reference =
       draft.bookingReference ||
       `VYR-DEMO-${Math.floor(1000 + Math.random() * 9000)}`
     updateDraft({ bookingReference: reference })
     setStatus("confirmed")
     return reference
-  }, [draft.bookingReference, updateDraft])
+  }, [draft, pickupHub.id, returnHub.id, liveQuote?.quoteId, updateDraft])
 
-  // Reset booking: cleans storage and in-memory state
+  // Reset booking
   const resetBooking = React.useCallback(() => {
     if (typeof window !== "undefined") {
       sessionStorage.removeItem(STORAGE_KEY)
@@ -364,18 +644,31 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     setDraft(initialDraft())
     setDriverErrors({})
     setStatus("idle")
+    setLiveVehicle(null)
+    setLiveQuote(null)
   }, [initialDraft])
 
   const contextValue: BookingContextValue = {
     draft,
     vehicle,
-    pickupLocationName: `${pickupHub.city} (${pickupHub.name})`,
-    returnLocationName: `${returnHub.city} (${returnHub.name})`,
+    pickupLocationName: pickupHub.barangay
+      ? `Barangay ${pickupHub.barangay}, Butuan City, Agusan del Norte`
+      : `${pickupHub.name}, Butuan City, Agusan del Norte`,
+    returnLocationName: returnHub.barangay
+      ? `Barangay ${returnHub.barangay}, Butuan City, Agusan del Norte`
+      : `${returnHub.name}, Butuan City, Agusan del Norte`,
+    pickupHub,
+    returnHub,
+    availableLocations: locations,
     rentalDays,
     pricing,
     driverErrors,
     status,
     currentStep,
+    liveQuote,
+    quoteLoading,
+    quoteError,
+    availableExtras: liveExtras,
     updateDraft,
     toggleExtra,
     updateDriver,

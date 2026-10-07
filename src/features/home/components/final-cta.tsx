@@ -17,7 +17,7 @@ export function FinalCta() {
             Ready to Begin Your Journey?
           </h2>
           <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
-            Select your travel dates, choose your guaranteed vehicle model, and pick up your keys without airport queue delays.
+            Select your travel dates, choose your guaranteed vehicle model, and pick up your keys in Butuan City without counter delays.
           </p>
         </div>
 
@@ -31,13 +31,13 @@ export function FinalCta() {
           </Link>
           <Link href="/locations" className="w-full sm:w-auto">
             <Button variant="outline" size="lg" className="w-full sm:w-auto">
-              <span>View Hub Locations</span>
+              <span>View Butuan Hub</span>
             </Button>
           </Link>
         </div>
 
         <p className="text-xs text-muted-foreground pt-4 border-t border-border/50 max-w-md mx-auto">
-          Need a long-term corporate arrangement or custom concierge itinerary? Contact our operations desk 24/7.
+          Veyra serves customers in Butuan City, Agusan del Norte. Need a custom concierge itinerary? Contact our operations desk 24/7.
         </p>
       </div>
     </div>

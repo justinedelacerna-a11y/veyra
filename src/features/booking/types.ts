@@ -1,4 +1,4 @@
-import { Vehicle } from "@/types"
+import { Vehicle, LocationHub } from "@/types"
 
 export type BookingStep =
   | "vehicle"
@@ -94,21 +94,62 @@ export type BookingStatus =
   | "confirmed"
   | "error"
 
+export interface LiveQuoteResult {
+  quoteId?: string
+  vehicleId: string
+  vehicleName: string
+  rentalDays: number
+  pickupAt: string
+  returnAt: string
+  pickupLocationId: string
+  returnLocationId: string
+  dailyRateCentavos: number
+  baseRentalCentavos: number
+  extrasSubtotalCentavos: number
+  airportConcessionFeeCentavos: number
+  mandatoryLiabilityCoverageCentavos: number
+  taxAmountCentavos: number
+  discountAmountCentavos: number
+  subtotalCentavos: number
+  totalRentalCentavos: number
+  securityDepositCentavos: number
+  currency: string
+  pricing: BookingPricingSummary
+  selectedExtras: Array<{
+    id: string
+    slug: string
+    name: string
+    dailyRateCentavos: number
+    dailyRatePesos: number
+    totalCentavos: number
+    totalPesos: number
+  }>
+  expiresAt?: string
+}
+
 export interface BookingContextValue {
   draft: BookingDraft
   vehicle: Vehicle
   pickupLocationName: string
   returnLocationName: string
+  pickupHub: LocationHub
+  returnHub: LocationHub
+  availableLocations: LocationHub[]
   rentalDays: number
   pricing: BookingPricingSummary
   driverErrors: DriverFormErrors
   status: BookingStatus
   currentStep: BookingStep
+  liveQuote: LiveQuoteResult | null
+  quoteLoading: boolean
+  quoteError: string | null
+  availableExtras: ExtraOption[]
   updateDraft: (updates: Partial<BookingDraft>) => void
   toggleExtra: (extraId: string) => void
   updateDriver: (field: keyof DriverDetails, value: string) => void
   validateDriverStep: () => boolean
   validatePaymentStep: () => boolean
-  completeBooking: () => string
+  completeBooking: () => Promise<string>
   resetBooking: () => void
 }
+

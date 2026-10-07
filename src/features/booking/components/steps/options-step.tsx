@@ -4,7 +4,6 @@ import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useBooking } from "../../context/booking-context"
-import { MOCK_BOOKING_EXTRAS } from "../../data/extras"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -19,17 +18,20 @@ import {
 } from "@remixicon/react"
 import { cn } from "@/lib/utils"
 
-const EXTRA_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  "extra-zero-excess": RiShieldCheckLine,
-  "extra-add-driver": RiUserAddLine,
-  "extra-gps-wifi": RiWifiLine,
-  "extra-child-seat": RiParentLine,
-  "extra-unlimited-km": RiSpeedUpLine,
+function resolveExtraIcon(category: string, id?: string): React.ComponentType<{ className?: string }> {
+  if (id?.includes("wifi") || category === "connectivity") return RiWifiLine
+  if (category === "protection") return RiShieldCheckLine
+  if (category === "convenience") return RiUserAddLine
+  if (category === "equipment") return RiParentLine
+  if (category === "mileage") return RiSpeedUpLine
+  return RiWifiLine
 }
 
 export function OptionsStep() {
   const router = useRouter()
-  const { draft, toggleExtra, rentalDays } = useBooking()
+  const { draft, toggleExtra, rentalDays, availableExtras } = useBooking()
+
+  const extrasList = availableExtras || []
 
   return (
     <div className="space-y-6">
@@ -48,9 +50,12 @@ export function OptionsStep() {
 
       {/* Selectable Extras Cards Grid */}
       <div className="space-y-3.5">
-        {MOCK_BOOKING_EXTRAS.map((extra) => {
-          const isSelected = draft.selectedExtras.includes(extra.id)
-          const IconComponent = EXTRA_ICONS[extra.id] || RiShieldCheckLine
+        {extrasList.map((extra) => {
+          const extraSlug = (extra as { slug?: string }).slug
+          const isSelected =
+            draft.selectedExtras.includes(extra.id) ||
+            Boolean(extraSlug && draft.selectedExtras.includes(extraSlug))
+          const IconComponent = resolveExtraIcon(extra.category, extra.id)
           const extraTripTotal = extra.dailyRate * rentalDays
 
           return (

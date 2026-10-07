@@ -5,6 +5,7 @@ import { CustomerProfile } from "@/features/account/types"
 
 export type AdminReservationStatus =
   | "draft"
+  | "quote_created"
   | "held"
   | "payment_pending"
   | "confirmed"
@@ -15,6 +16,8 @@ export type AdminReservationStatus =
   | "cancelled"
   | "no_show"
   | "disputed"
+  | "expired"
+  | "payment_failed"
 
 export interface AdminReservationStatusConfig {
   label: string
@@ -24,9 +27,10 @@ export interface AdminReservationStatusConfig {
 
 export const RESERVATION_STATUS_CONFIG: Record<AdminReservationStatus, AdminReservationStatusConfig> = {
   draft: { label: "Draft", badgeVariant: "neutral", description: "Reservation started but not submitted." },
+  quote_created: { label: "Quote Created", badgeVariant: "neutral", description: "Authoritative price quote generated." },
   held: { label: "Held", badgeVariant: "pending", description: "Vehicle slot held, awaiting payment." },
   payment_pending: { label: "Payment Pending", badgeVariant: "warning", description: "Awaiting payment confirmation." },
-  confirmed: { label: "Confirmed", badgeVariant: "success", description: "Payment received, vehicle assigned." },
+  confirmed: { label: "Confirmed", badgeVariant: "success", description: "Payment received or deferred hold confirmed." },
   pickup_ready: { label: "Pickup Ready", badgeVariant: "info", description: "Vehicle prepped and staged at hub." },
   active: { label: "Active Rental", badgeVariant: "success", description: "Vehicle is currently on rental." },
   return_inspection: { label: "Return Inspection", badgeVariant: "pending", description: "Vehicle returned; inspection in progress." },
@@ -34,6 +38,8 @@ export const RESERVATION_STATUS_CONFIG: Record<AdminReservationStatus, AdminRese
   cancelled: { label: "Cancelled", badgeVariant: "error", description: "Reservation was cancelled." },
   no_show: { label: "No-Show", badgeVariant: "error", description: "Customer did not appear for pickup." },
   disputed: { label: "Disputed", badgeVariant: "warning", description: "Reservation under dispute review." },
+  expired: { label: "Expired", badgeVariant: "neutral", description: "Hold period expired without payment." },
+  payment_failed: { label: "Payment Failed", badgeVariant: "error", description: "Payment attempt was unsuccessful." },
 }
 
 // ─── Fleet Operational Status ─────────────────────────────────────────────────
@@ -68,6 +74,7 @@ export interface FleetVehicle extends Vehicle {
 
 export interface AdminReservation {
   id: string
+  reference?: string
   status: AdminReservationStatus
   customerId: string
   customerName: string
@@ -78,10 +85,12 @@ export interface AdminReservation {
   branch: string
   pickupLocationId: string
   pickupLocationName: string
+  pickupBarangay?: string
   pickupDate: string
   pickupTime: string
   returnLocationId: string
   returnLocationName: string
+  returnBarangay?: string
   returnDate: string
   returnTime: string
   rentalDays: number
@@ -231,6 +240,10 @@ export type AuditAction =
   | "user.suspended"
   | "pricing.updated"
   | "settings.changed"
+  | "vehicle.photo_uploaded"
+  | "vehicle.photo_set_primary"
+  | "vehicle.photo_deleted"
+  | "vehicle.photos_reordered"
 
 export interface AuditEvent {
   id: string
@@ -249,6 +262,10 @@ export interface AuditEvent {
 // ─── Admin Customer Record ────────────────────────────────────────────────────
 
 export interface AdminCustomerRecord extends CustomerProfile {
+  name?: string
+  userId?: string
+  driverLicenseNumber?: string
+  driverLicenseExpiry?: string
   reservationCount: number
   activeReservationId?: string
   lastRentalDate?: string
@@ -259,4 +276,21 @@ export interface AdminCustomerRecord extends CustomerProfile {
   verificationStatus: "verified" | "pending" | "rejected"
   status: "active" | "restricted" | "blocked"
   notes?: string
+}
+
+// ─── Admin Customer Document ──────────────────────────────────────────────────
+
+export interface AdminCustomerDocument {
+  id: string
+  customerId: string
+  type: "driver_license" | "government_id" | "address_proof" | "passport"
+  originalFilename: string
+  mimeType: string
+  fileSizeBytes: number
+  status: "pending_review" | "approved" | "rejected" | "expired"
+  rejectionReason?: string
+  expiresAt?: string
+  createdAt: string
+  reviewedAt?: string
+  reviewedBy?: string
 }

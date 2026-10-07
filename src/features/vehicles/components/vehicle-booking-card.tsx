@@ -2,8 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { Vehicle } from "@/types"
-import { MOCK_LOCATIONS } from "@/lib/mock/locations"
+import { Vehicle, LocationHub } from "@/types"
 import { Button } from "@/components/ui/button"
 import {
   RiShieldCheckLine,
@@ -22,6 +21,7 @@ export interface VehicleBookingCardProps {
   fromTime?: string
   to?: string
   toTime?: string
+  locations?: LocationHub[]
 }
 
 export function VehicleBookingCard({
@@ -32,12 +32,54 @@ export function VehicleBookingCard({
   fromTime = "10:00",
   to,
   toTime = "10:00",
+  locations,
 }: VehicleBookingCardProps) {
+  const [internalLocations, setInternalLocations] = React.useState<LocationHub[]>(locations || [])
+
+  React.useEffect(() => {
+    if (locations && locations.length > 0) return
+
+    let cancelled = false
+    fetch("/api/locations")
+      .then((res) => res.json())
+      .then((data: { locations?: LocationHub[] }) => {
+        if (!cancelled && data.locations && data.locations.length > 0) {
+          setInternalLocations(data.locations)
+        }
+      })
+      .catch((err) => {
+        console.error("[vehicle-booking-card] error fetching locations:", err)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [locations])
+
+  const activeLocations = locations && locations.length > 0 ? locations : internalLocations
+
+  const [userPickup, setUserPickup] = React.useState<string | null>(null)
+  const [userReturn, setUserReturn] = React.useState<string | null>(null)
+
+  const selectedPickup = userPickup || pickupId || "10c00000-0000-0000-0000-000000000001"
+  const selectedReturn = userReturn || returnLocId || selectedPickup
+
   // Resolve locations
   const pickupHub =
-    MOCK_LOCATIONS.find((l) => l.id === pickupId) || MOCK_LOCATIONS[0]
+    activeLocations.find((l) => l.id === selectedPickup) || activeLocations[0] || {
+      id: selectedPickup || "10c00000-0000-0000-0000-000000000001",
+      name: "Barangay Libertad Hub",
+      barangay: "Libertad",
+      city: "Butuan City",
+      province: "Agusan del Norte",
+      type: "Barangay Hub" as const,
+      address: "Barangay Libertad, Butuan City, Agusan del Norte",
+      operatingHours: "08:00 - 20:00",
+      pickupAvailable: true,
+    }
+
   const returnHub =
-    MOCK_LOCATIONS.find((l) => l.id === returnLocId) || pickupHub
+    activeLocations.find((l) => l.id === selectedReturn) || pickupHub
 
   // Calculate rental duration in days
   const rentalDays = React.useMemo(() => {
@@ -87,23 +129,61 @@ export function VehicleBookingCard({
         </span>
       </div>
 
-      {/* Selected Itinerary Summary */}
-      <div className="space-y-3 rounded-xl bg-muted/40 p-4 border border-border/50 text-xs">
-        <div className="flex items-start gap-2.5">
-          <RiMapPinLine className="size-4 text-primary shrink-0 mt-0.5" />
-          <div className="space-y-0.5">
-            <span className="font-semibold text-foreground block">
-              Pickup & Handover
-            </span>
-            <span className="text-muted-foreground">
-              {pickupHub.city} — {pickupHub.name}
-            </span>
-            {returnHub.id !== pickupHub.id && (
-              <span className="text-muted-foreground block text-[11px] pt-0.5">
-                Return: {returnHub.city} — {returnHub.name}
-              </span>
-            )}
+      {/* Selected Itinerary Summary & Barangay Selectors */}
+      <div className="space-y-3.5 rounded-xl bg-muted/40 p-4 border border-border/50 text-xs">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label htmlFor="card-pickup-loc" className="font-semibold text-foreground flex items-center gap-1.5">
+              <RiMapPinLine className="size-3.5 text-primary shrink-0" />
+              <span>Pickup Barangay</span>
+            </label>
+            <span className="text-[10px] text-muted-foreground">Butuan City</span>
           </div>
+          <select
+            id="card-pickup-loc"
+            value={pickupHub.id}
+            onChange={(e) => {
+              setUserPickup(e.target.value)
+              if (!userReturn || userReturn === selectedPickup) {
+                setUserReturn(e.target.value)
+              }
+            }}
+            className="w-full h-9 rounded-md border border-input bg-background/90 px-2.5 text-xs font-medium text-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
+          >
+            {activeLocations.map((loc) => (
+              <option key={loc.id} value={loc.id}>
+                Barangay {loc.barangay || loc.name}
+              </option>
+            ))}
+          </select>
+          <p className="text-[11px] text-muted-foreground">
+            Barangay {pickupHub.barangay || pickupHub.name}, Butuan City, Agusan del Norte
+          </p>
+        </div>
+
+        <div className="space-y-2 pt-2 border-t border-border/40">
+          <div className="flex items-center justify-between">
+            <label htmlFor="card-return-loc" className="font-semibold text-foreground flex items-center gap-1.5">
+              <RiMapPinLine className="size-3.5 text-muted-foreground shrink-0" />
+              <span>Return Barangay</span>
+            </label>
+            <span className="text-[10px] text-muted-foreground">Butuan City</span>
+          </div>
+          <select
+            id="card-return-loc"
+            value={returnHub.id}
+            onChange={(e) => setUserReturn(e.target.value)}
+            className="w-full h-9 rounded-md border border-input bg-background/90 px-2.5 text-xs font-medium text-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
+          >
+            {activeLocations.map((loc) => (
+              <option key={loc.id} value={loc.id}>
+                Barangay {loc.barangay || loc.name}
+              </option>
+            ))}
+          </select>
+          <p className="text-[11px] text-muted-foreground">
+            Barangay {returnHub.barangay || returnHub.name}, Butuan City, Agusan del Norte
+          </p>
         </div>
 
         <div className="flex items-start gap-2.5 pt-2 border-t border-border/40">

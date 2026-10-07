@@ -11,3 +11,5 @@
  */
 
 export { createClient, useSupabase } from "./client"
+export { useRealtimeRefresh } from "./realtime"
+export type { RealtimeStatus, UseRealtimeRefreshOptions, RealtimeTableConfig } from "./realtime"

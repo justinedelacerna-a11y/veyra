@@ -4,8 +4,11 @@ import { BookingPricingSummary, ExtraOption } from "@/features/booking/types"
 export type CustomerReservationStatus =
   | "upcoming"
   | "active"
+  | "return_inspection"
   | "completed"
   | "cancelled"
+  | "no_show"
+  | "disputed"
 
 export interface ReservationTimelineStep {
   step: "booked" | "confirmed" | "pickup" | "active" | "return" | "completed"
@@ -18,6 +21,7 @@ export interface ReservationTimelineStep {
 
 export interface CustomerReservation {
   id: string
+  uuid?: string
   vehicleId: string
   vehicle: Vehicle
   status: CustomerReservationStatus
@@ -25,11 +29,13 @@ export interface CustomerReservation {
   createdAt: string
   pickupLocationId: string
   pickupLocationName: string
+  pickupBarangay?: string
   pickupAddress: string
   pickupDate: string
   pickupTime: string
   returnLocationId: string
   returnLocationName: string
+  returnBarangay?: string
   returnAddress: string
   returnDate: string
   returnTime: string
@@ -45,7 +51,7 @@ export interface CustomerReservation {
   }
   timeline: ReservationTimelineStep[]
   paymentMethod: "card" | "e-wallet" | "counter"
-  paymentStatus: "authorized" | "captured" | "refunded" | "cancelled"
+  paymentStatus: "pending" | "authorized" | "captured" | "refunded" | "cancelled" | "failed"
   cancellationPolicy: string
   handoverChecklist: string[]
   notes?: string

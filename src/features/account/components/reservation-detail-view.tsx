@@ -31,6 +31,7 @@ import {
   RiPhoneLine,
   RiAlertLine,
 } from "@remixicon/react"
+import { VehicleImage } from "@/components/ui/vehicle-image"
 
 export interface ReservationDetailViewProps {
   reservation: CustomerReservation
@@ -66,6 +67,26 @@ export function ReservationDetailView({ reservation }: ReservationDetailViewProp
               Reservation {reservation.id}
             </h1>
             <StatusBadge status={badgeStatus} label={reservation.statusLabel} />
+            <StatusBadge
+              status={
+                reservation.paymentStatus === "captured"
+                  ? "success"
+                  : reservation.paymentStatus === "pending"
+                  ? "warning"
+                  : reservation.paymentStatus === "failed"
+                  ? "error"
+                  : "neutral"
+              }
+              label={
+                reservation.paymentStatus === "captured"
+                  ? "Paid"
+                  : reservation.paymentStatus === "pending"
+                  ? "Pending Payment"
+                  : reservation.paymentStatus === "failed"
+                  ? "Payment Failed"
+                  : "Authorized"
+              }
+            />
           </div>
           <p className="text-xs text-muted-foreground">
             Booked on {reservation.createdAt} · {reservation.rentalDays} days total
@@ -127,6 +148,17 @@ export function ReservationDetailView({ reservation }: ReservationDetailViewProp
           Reserved Vehicle
         </h2>
 
+        {/* Vehicle Photo Showcase */}
+        <div className="overflow-hidden rounded-xl border border-border/60 bg-muted/20">
+          <VehicleImage
+            src={vehicle.primaryImage || vehicle.images?.[0] || null}
+            alt={`${vehicle.year} ${vehicle.make} ${vehicle.model} - Veyra rental vehicle`}
+            aspectRatio="16/10"
+            category={vehicle.category}
+            containerClassName="h-56 sm:h-72 w-full"
+          />
+        </div>
+
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="text-xs font-semibold text-primary uppercase tracking-wider mb-0.5">
@@ -184,8 +216,11 @@ export function ReservationDetailView({ reservation }: ReservationDetailViewProp
             <div className="flex items-start gap-1.5 text-xs text-muted-foreground pt-1 border-t">
               <RiMapPinLine className="size-3.5 text-primary shrink-0 mt-0.5" />
               <div>
-                <div className="font-medium text-foreground">{reservation.pickupLocationName}</div>
-                <div>{reservation.pickupAddress}</div>
+                <div className="font-semibold text-foreground">
+                  {reservation.pickupBarangay ? `Barangay ${reservation.pickupBarangay}` : reservation.pickupLocationName}
+                </div>
+                <div className="text-muted-foreground font-medium">Butuan City, Agusan del Norte</div>
+                <div className="text-[11px] text-muted-foreground/80 mt-0.5">{reservation.pickupAddress}</div>
               </div>
             </div>
           </div>
@@ -204,8 +239,11 @@ export function ReservationDetailView({ reservation }: ReservationDetailViewProp
             <div className="flex items-start gap-1.5 text-xs text-muted-foreground pt-1 border-t">
               <RiMapPinLine className="size-3.5 text-primary shrink-0 mt-0.5" />
               <div>
-                <div className="font-medium text-foreground">{reservation.returnLocationName}</div>
-                <div>{reservation.returnAddress}</div>
+                <div className="font-semibold text-foreground">
+                  {reservation.returnBarangay ? `Barangay ${reservation.returnBarangay}` : reservation.returnLocationName}
+                </div>
+                <div className="text-muted-foreground font-medium">Butuan City, Agusan del Norte</div>
+                <div className="text-[11px] text-muted-foreground/80 mt-0.5">{reservation.returnAddress}</div>
               </div>
             </div>
           </div>

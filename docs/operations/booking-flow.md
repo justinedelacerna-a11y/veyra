@@ -23,8 +23,8 @@ All pricing, option selections, and driver credentials are orchestrated through 
 | **02 Options** | `/booking/options` | Configure add-ons & excess protection | Selectable cards for Full Protection Waiver, Additional Driver, In-Car Wi-Fi, Child Seat, and Unlimited Mileage. |
 | **03 Driver** | `/booking/driver` | Enter verified driver credentials | Semantic form with client-side validation for first/last name, email, phone, birth date (21+ minimum), and driver license number. |
 | **04 Review** | `/booking/review` | Verify complete itinerary & terms | Comprehensive breakdown of vehicle, dates, locations, selected options, and driver details with modular `[Edit]` buttons for each section. |
-| **05 Payment** | `/booking/payment` | Select payment method & policies | Frontend-only payment simulator (Card, Digital Wallet, Pay at Handover). Enforces terms & cancellation policy acknowledgement. |
-| **06 Confirmation** | `/booking/confirmation` | View booking reference & next steps | Displays generated reference (e.g., `VYR-DEMO-4821`), airport valet handover instructions, printable summary, and return actions. |
+| **05 Payment** | `/booking/payment` | Select payment method & policies | Payment Agreement & Handover. When `PAYMENTS_ENABLED=false`, payment is deferred with `payment_status='pending'`. Enforces terms & cancellation policy acknowledgement. |
+| **06 Confirmation** | `/booking/confirmation` | View booking reference & next steps | Displays authoritative booking reference (e.g., `VYR-2026-ABCD`), airport valet handover instructions, payment pending status, printable summary, and customer portal links. |
 
 ---
 

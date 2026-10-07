@@ -11,6 +11,7 @@ import {
   RiGasStationLine,
   RiUser3Line,
 } from "@remixicon/react"
+import { VehicleImage } from "@/components/ui/vehicle-image"
 
 export interface ReservationCardProps {
   reservation: CustomerReservation
@@ -22,8 +23,11 @@ export function ReservationCard({ reservation }: ReservationCardProps) {
   const statusTypeMap: Record<string, StatusType> = {
     upcoming: "info",
     active: "success",
+    return_inspection: "pending",
     completed: "neutral",
     cancelled: "error",
+    no_show: "error",
+    disputed: "warning",
   }
 
   const badgeStatus = statusTypeMap[reservation.status] || "info"
@@ -44,35 +48,69 @@ export function ReservationCard({ reservation }: ReservationCardProps) {
             label={reservation.statusLabel}
             size="sm"
           />
+          <StatusBadge
+            status={
+              reservation.paymentStatus === "captured"
+                ? "success"
+                : reservation.paymentStatus === "pending"
+                ? "warning"
+                : reservation.paymentStatus === "failed"
+                ? "error"
+                : "neutral"
+            }
+            label={
+              reservation.paymentStatus === "captured"
+                ? "Paid"
+                : reservation.paymentStatus === "pending"
+                ? "Pending Payment"
+                : reservation.paymentStatus === "failed"
+                ? "Payment Failed"
+                : "Authorized"
+            }
+            size="sm"
+          />
         </div>
 
-        <div>
-          <div className="flex items-center gap-2 text-[11px] font-semibold text-primary uppercase tracking-wider mb-0.5">
-            <span>{vehicle.category}</span>
-            <span>•</span>
-            <span>{vehicle.year} Model</span>
+        <div className="flex items-start gap-4">
+          <div className="relative size-20 sm:size-24 shrink-0 rounded-xl overflow-hidden border bg-muted/30">
+            <VehicleImage
+              src={vehicle.primaryImage || vehicle.images?.[0] || null}
+              alt={`${vehicle.make} ${vehicle.model}`}
+              aspectRatio="none"
+              category={vehicle.category}
+              containerClassName="size-20 sm:size-24"
+              showFallbackBadge={false}
+            />
           </div>
-          <h3 className="font-heading text-lg sm:text-xl font-bold text-foreground truncate">
-            {vehicle.make} {vehicle.model}
-          </h3>
-        </div>
 
-        {/* Specs */}
-        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1">
-            <RiSteeringLine className="size-3.5 text-foreground" />
-            <span>{vehicle.transmission}</span>
-          </span>
-          <span>•</span>
-          <span className="inline-flex items-center gap-1">
-            <RiGasStationLine className="size-3.5 text-foreground" />
-            <span>{vehicle.fuelType}</span>
-          </span>
-          <span>•</span>
-          <span className="inline-flex items-center gap-1">
-            <RiUser3Line className="size-3.5 text-foreground" />
-            <span>{vehicle.seats} Seats</span>
-          </span>
+          <div className="min-w-0 flex-1 space-y-1">
+            <div className="flex items-center gap-2 text-[11px] font-semibold text-primary uppercase tracking-wider">
+              <span>{vehicle.category}</span>
+              <span>•</span>
+              <span>{vehicle.year} Model</span>
+            </div>
+            <h3 className="font-heading text-lg sm:text-xl font-bold text-foreground truncate">
+              {vehicle.make} {vehicle.model}
+            </h3>
+
+            {/* Specs */}
+            <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground pt-1">
+              <span className="inline-flex items-center gap-1">
+                <RiSteeringLine className="size-3.5 text-foreground" />
+                <span>{vehicle.transmission}</span>
+              </span>
+              <span>•</span>
+              <span className="inline-flex items-center gap-1">
+                <RiGasStationLine className="size-3.5 text-foreground" />
+                <span>{vehicle.fuelType}</span>
+              </span>
+              <span>•</span>
+              <span className="inline-flex items-center gap-1">
+                <RiUser3Line className="size-3.5 text-foreground" />
+                <span>{vehicle.seats} Seats</span>
+              </span>
+            </div>
+          </div>
         </div>
 
         {/* Schedule & Hubs */}
@@ -85,7 +123,9 @@ export function ReservationCard({ reservation }: ReservationCardProps) {
               </span>
               <span className="text-[11px] truncate block flex items-center gap-1">
                 <RiMapPinLine className="size-3 shrink-0" />
-                <span className="truncate">{reservation.pickupLocationName}</span>
+                <span className="truncate">
+                  {reservation.pickupBarangay ? `Brgy. ${reservation.pickupBarangay}, Butuan City` : reservation.pickupLocationName}
+                </span>
               </span>
             </div>
           </div>
@@ -98,7 +138,9 @@ export function ReservationCard({ reservation }: ReservationCardProps) {
               </span>
               <span className="text-[11px] truncate block flex items-center gap-1">
                 <RiMapPinLine className="size-3 shrink-0" />
-                <span className="truncate">{reservation.returnLocationName}</span>
+                <span className="truncate">
+                  {reservation.returnBarangay ? `Brgy. ${reservation.returnBarangay}, Butuan City` : reservation.returnLocationName}
+                </span>
               </span>
             </div>
           </div>

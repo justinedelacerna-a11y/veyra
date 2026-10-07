@@ -1,12 +1,14 @@
 import * as React from "react"
-import { MOCK_DOCUMENTS } from "@/lib/mock/customer"
+import { Metadata } from "next"
+import { getCustomerDocuments } from "@/features/account/server/customer-repository"
 import { AccountHeader } from "@/features/account/components/account-header"
+import { DocumentUploadDialog } from "@/features/account/components/document-upload-dialog"
 import { StatusBadge, StatusType } from "@/components/common/status-badge"
 import { DocumentStatus } from "@/features/account/types"
+import { ValidDocumentType } from "@/features/account/server/document-actions"
 import {
   RiFileList3Line,
-  RiInformationLine,
-  RiUploadLine,
+  RiShieldCheckLine,
   RiCheckboxCircleLine,
   RiTimeLine,
   RiCloseCircleLine,
@@ -14,46 +16,118 @@ import {
   RiCalendarLine,
 } from "@remixicon/react"
 
-const documentStatusMap: Record<DocumentStatus, { badge: StatusType; label: string; icon: React.ElementType }> = {
-  not_uploaded: { badge: "neutral", label: "Not Uploaded", icon: RiUploadLine },
+export const metadata: Metadata = {
+  title: "Identity Documents — Veyra Account",
+  description: "Track the status of identity documents submitted for rental verification and security clearance.",
+}
+
+const documentStatusMap: Record<
+  DocumentStatus,
+  { badge: StatusType; label: string; icon: React.ElementType }
+> = {
+  not_uploaded: { badge: "neutral", label: "Not Uploaded", icon: RiFileList3Line },
   pending_review: { badge: "pending", label: "Pending Review", icon: RiTimeLine },
   approved: { badge: "success", label: "Approved & Verified", icon: RiCheckboxCircleLine },
   rejected: { badge: "error", label: "Rejected — Action Required", icon: RiCloseCircleLine },
   expired: { badge: "warning", label: "Expired — Update Required", icon: RiAlertLine },
 }
 
-export default function DocumentsPage() {
-  const documents = MOCK_DOCUMENTS
+interface StandardDocConfig {
+  type: ValidDocumentType
+  title: string
+  description: string
+  requiredForRental: boolean
+}
+
+const STANDARD_DOCUMENT_SLOTS: StandardDocConfig[] = [
+  {
+    type: "driver_license",
+    title: "Official Driver's License",
+    description: "Valid physical photocard driver's license (Philippine LTO or authorized international permit). Required before vehicle handover.",
+    requiredForRental: true,
+  },
+  {
+    type: "government_id",
+    title: "Primary Government-Issued ID",
+    description: "Passport, UMID, National ID (PhilSys), or PRC ID card for primary identity verification.",
+    requiredForRental: true,
+  },
+  {
+    type: "address_proof",
+    title: "Proof of Billing / Address",
+    description: "Utility bill, bank statement, or lease contract issued within the last 90 days matching your account address.",
+    requiredForRental: false,
+  },
+]
+
+export default async function DocumentsPage() {
+  const liveDocuments = await getCustomerDocuments()
+
+  // Match live documents with standard required slots or show them
+  const documentCards = STANDARD_DOCUMENT_SLOTS.map((slot) => {
+    // Find latest record for this document type
+    const existing = liveDocuments.find((d) => d.category === slot.type)
+
+    if (existing) {
+      return {
+        id: existing.id,
+        slotType: slot.type,
+        title: slot.title,
+        description: slot.description,
+        status: existing.status,
+        statusLabel: existing.statusLabel,
+        fileName: existing.fileName,
+        uploadedAt: existing.uploadedAt,
+        expiresAt: existing.expiresAt,
+        rejectionReason: existing.rejectionReason,
+        requiredForRental: slot.requiredForRental,
+      }
+    }
+
+    return {
+      id: `slot-${slot.type}`,
+      slotType: slot.type,
+      title: slot.title,
+      description: slot.description,
+      status: "not_uploaded" as DocumentStatus,
+      statusLabel: "Not Uploaded",
+      fileName: undefined,
+      uploadedAt: undefined,
+      expiresAt: undefined,
+      rejectionReason: undefined,
+      requiredForRental: slot.requiredForRental,
+    }
+  })
 
   return (
     <div className="space-y-8">
       <AccountHeader
         title="Identity Documents"
-        description="Track the status of identity documents submitted for rental verification and security clearance."
+        description="Submit and track verification documents required for seamless vehicle collection and handover clearance."
       />
 
       {/* Security Notice */}
-      <div className="rounded-lg border border-dashed border-border/80 bg-muted/40 p-4 text-xs text-muted-foreground flex gap-2.5 items-start">
-        <RiInformationLine className="size-4 shrink-0 mt-0.5" />
+      <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-xs text-muted-foreground flex gap-2.5 items-start">
+        <RiShieldCheckLine className="size-4 shrink-0 mt-0.5 text-primary" />
         <p className="leading-relaxed">
-          <strong className="text-foreground font-medium">Document Security:</strong>{" "}
-          Document upload is not active in this frontend prototype. In production, files will be stored in Supabase private storage with access-controlled signed URLs. Document data is never exposed in browser storage, public URLs, or URL query parameters.
+          <strong className="text-foreground font-medium">Bank-Grade Privacy:</strong>{" "}
+          All submitted documents are transferred via TLS 1.3, encrypted at rest in isolated private storage, and only accessible by credentialed Veyra verification specialists. Document URLs are never made public.
         </p>
       </div>
 
       {/* Documents List */}
       <div className="space-y-4">
-        {documents.map((doc) => {
+        {documentCards.map((doc) => {
           const config = documentStatusMap[doc.status]
 
           return (
             <div
               key={doc.id}
-              className="rounded-xl border bg-card p-5 sm:p-6 flex flex-col sm:flex-row sm:items-start gap-5"
+              className="rounded-xl border bg-card p-5 sm:p-6 flex flex-col sm:flex-row sm:items-start gap-5 shadow-xs"
             >
               {/* Status Icon */}
               <div
-                className="flex size-10 shrink-0 items-center justify-center rounded-lg border bg-muted"
+                className="flex size-10 shrink-0 items-center justify-center rounded-lg border bg-muted/60"
                 aria-hidden="true"
               >
                 <RiFileList3Line className="size-5 text-muted-foreground" />
@@ -66,7 +140,7 @@ export default function DocumentsPage() {
                     <h3 className="font-heading text-base font-semibold text-foreground">{doc.title}</h3>
                     {doc.requiredForRental && (
                       <span className="text-[10px] text-amber-800 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded font-medium mt-1 inline-block">
-                        Required for Rental Handover
+                        Required for Vehicle Handover
                       </span>
                     )}
                   </div>
@@ -112,22 +186,14 @@ export default function DocumentsPage() {
                   </div>
                 )}
 
-                {/* Action Placeholder */}
-                {(doc.status === "not_uploaded" || doc.status === "rejected" || doc.status === "expired") && (
-                  <div className="pt-1">
-                    <button
-                      type="button"
-                      disabled
-                      className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground border border-dashed border-border px-3 py-1.5 rounded-lg cursor-not-allowed opacity-70"
-                      aria-disabled="true"
-                      title="Document upload is not available in prototype mode"
-                    >
-                      <RiUploadLine className="size-3.5" />
-                      <span>{doc.status === "not_uploaded" ? "Upload Document" : "Upload Replacement"}</span>
-                      <span className="ml-1 text-[10px] px-1.5 rounded bg-muted text-muted-foreground">Prototype Only</span>
-                    </button>
-                  </div>
-                )}
+                {/* Upload Action */}
+                <div className="pt-2">
+                  <DocumentUploadDialog
+                    documentType={doc.slotType}
+                    documentTitle={doc.title}
+                    isReplacement={doc.status === "approved" || doc.status === "pending_review"}
+                  />
+                </div>
               </div>
             </div>
           )
@@ -137,7 +203,7 @@ export default function DocumentsPage() {
       {/* Status Legend */}
       <section className="rounded-xl border bg-muted/30 p-5 space-y-3" aria-labelledby="status-legend-heading">
         <h2 id="status-legend-heading" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Document Status Reference
+          Verification Workflow Reference
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
           {(Object.entries(documentStatusMap) as [DocumentStatus, typeof documentStatusMap[DocumentStatus]][]).map(([key, config]) => {
@@ -147,11 +213,11 @@ export default function DocumentsPage() {
                 <Icon className="size-4 text-muted-foreground shrink-0" aria-hidden="true" />
                 <span>
                   <strong className="text-foreground">{config.label}</strong>
-                  {key === "not_uploaded" && " — Document has not been submitted yet."}
-                  {key === "pending_review" && " — Under review by the Veyra team."}
-                  {key === "approved" && " — Verified and accepted for rentals."}
-                  {key === "rejected" && " — Could not be verified. Resubmission required."}
-                  {key === "expired" && " — Document validity period has lapsed."}
+                  {key === "not_uploaded" && " — Awaiting document upload from member."}
+                  {key === "pending_review" && " — Submitted and queued for staff verification."}
+                  {key === "approved" && " — Verified and cleared for vehicle collection."}
+                  {key === "rejected" && " — Verification failed. Resubmission requested."}
+                  {key === "expired" && " — Document expiration date has passed."}
                 </span>
               </div>
             )

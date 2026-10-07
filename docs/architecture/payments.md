@@ -1,8 +1,12 @@
 # Veyra Payment Architecture
 
 **Phase 7 — Architecture Blueprint (Design-Only)**
-**Status:** Design document. PayMongo not yet integrated.
-**Date:** September 2026
+**Status:** Design document. PayMongo integrated behind feature flag; currently DEFERRED (`PAYMENTS_ENABLED=false`).
+**Date:** September 2026 (Updated October 2026)
+
+> [!NOTE]
+> **Active Environment Configuration:**
+> In the current development and operational environment, online payment gateway calls are inactive (`PAYMENTS_ENABLED=false`). Reservations are created and confirmed with `payment_status = 'pending'`, and payment is deferred to handover or manual settlement. The PayMongo server-side service and webhook endpoints remain intact and are activated by setting `PAYMENTS_ENABLED=true` alongside valid provider credentials.
 
 ---
 

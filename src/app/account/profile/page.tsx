@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { MOCK_CUSTOMER_PROFILE } from "@/lib/mock/customer"
+import { useUser } from "@clerk/nextjs"
 import { AccountHeader } from "@/features/account/components/account-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,14 +18,29 @@ interface ProfileFields {
 }
 
 export default function ProfilePage() {
+  const { user } = useUser()
   const [formState, setFormState] = React.useState<FormState>("idle")
   const [fields, setFields] = React.useState<ProfileFields>({
-    firstName: MOCK_CUSTOMER_PROFILE.firstName,
-    lastName: MOCK_CUSTOMER_PROFILE.lastName,
-    email: MOCK_CUSTOMER_PROFILE.email,
-    phone: MOCK_CUSTOMER_PROFILE.phone,
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
   })
   const [original, setOriginal] = React.useState<ProfileFields>({ ...fields })
+
+  const [syncedUserId, setSyncedUserId] = React.useState<string | null>(null)
+
+  if (user && user.id !== syncedUserId) {
+    setSyncedUserId(user.id)
+    const initial = {
+      firstName: user.firstName || "",
+      lastName: user.lastName || "",
+      email: user.primaryEmailAddress?.emailAddress || "",
+      phone: user.primaryPhoneNumber?.phoneNumber || "",
+    }
+    setFields(initial)
+    setOriginal(initial)
+  }
 
   const handleEdit = () => {
     setOriginal({ ...fields })
@@ -184,23 +199,27 @@ export default function ProfilePage() {
         <div className="space-y-3 text-sm">
           <div className="flex items-center justify-between border-b pb-3">
             <span className="text-muted-foreground">Membership Number</span>
-            <span className="font-mono font-semibold text-foreground">{MOCK_CUSTOMER_PROFILE.membershipNumber}</span>
+            <span className="font-mono font-semibold text-foreground">
+              {user ? `VYR-M-${user.id.slice(-5).toUpperCase()}` : "VYR-MEMBER"}
+            </span>
           </div>
           <div className="flex items-center justify-between border-b pb-3">
             <span className="text-muted-foreground">Member Since</span>
-            <span className="font-medium text-foreground">{MOCK_CUSTOMER_PROFILE.memberSince}</span>
+            <span className="font-medium text-foreground">
+              {user?.createdAt ? new Date(user.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" }) : "Member"}
+            </span>
           </div>
           <div className="flex items-center justify-between border-b pb-3">
             <span className="text-muted-foreground">Membership Tier</span>
-            <span className="font-medium text-emerald-700 dark:text-emerald-400">{MOCK_CUSTOMER_PROFILE.tier}</span>
+            <span className="font-medium text-emerald-700 dark:text-emerald-400">Veyra Circle • Standard Tier</span>
           </div>
           <div className="flex items-center justify-between border-b pb-3">
             <span className="text-muted-foreground">Total Completed Rentals</span>
-            <span className="font-medium text-foreground">{MOCK_CUSTOMER_PROFILE.totalRentals}</span>
+            <span className="font-medium text-foreground">0</span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Preferred Pickup Hub</span>
-            <span className="font-medium text-foreground text-right max-w-[60%]">{MOCK_CUSTOMER_PROFILE.preferredHubName}</span>
+            <span className="font-medium text-foreground text-right max-w-[60%]">Flagship Airport Terminal</span>
           </div>
         </div>
       </section>

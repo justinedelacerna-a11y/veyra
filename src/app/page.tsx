@@ -13,9 +13,9 @@ import {
 import { FeaturedVehicles } from "@/features/vehicles/components/featured-vehicles"
 
 export const metadata: Metadata = {
-  title: "Veyra — Premium Car Rental & Guaranteed Fleet Mobility",
+  title: "Veyra — Local Car Rental in Butuan City, Agusan del Norte",
   description:
-    "Find and book the exact car for your journey. Luxury SUVs, executive sedans, and high-performance electric vehicles with contactless airport valet pickup and transparent pricing.",
+    "Local car rental in Butuan City, Agusan del Norte, Philippines. Luxury SUVs, executive sedans, and high-performance electric vehicles with prompt local handover and transparent pricing.",
 }
 
 export default function HomePage() {

@@ -1,5 +1,5 @@
 import * as React from "react"
-import { MOCK_DRIVER_PROFILE } from "@/lib/mock/customer"
+import { getCustomerDriverProfile } from "@/features/account/server"
 import { AccountHeader } from "@/features/account/components/account-header"
 import { StatusBadge } from "@/components/common/status-badge"
 import {
@@ -15,8 +15,8 @@ const verificationStatusMap = {
   needs_update: { status: "warning" as const, label: "Update Required" },
 }
 
-export default function DriverPage() {
-  const driver = MOCK_DRIVER_PROFILE
+export default async function DriverPage() {
+  const driver = await getCustomerDriverProfile()
   const statusConfig = verificationStatusMap[driver.verificationStatus]
 
   return (
@@ -31,7 +31,7 @@ export default function DriverPage() {
         <RiAlertLine className="size-4 shrink-0 mt-0.5" />
         <p className="leading-relaxed">
           <strong className="font-semibold">Privacy Notice:</strong>{" "}
-          Driver information displayed on this page is read from runtime memory only. This data is not stored in browser localStorage, sessionStorage, or any cookies during the frontend prototype phase. Full credential management will be handled securely via Clerk and server-side Supabase storage.
+          Driver license details are encrypted and securely stored for reservation validation and insurance compliance. Complete credential management is handled securely via Clerk and Supabase.
         </p>
       </div>
 

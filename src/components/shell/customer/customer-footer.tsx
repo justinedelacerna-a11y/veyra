@@ -48,7 +48,7 @@ const footerSections: FooterSection[] = [
     links: [
       { label: "About Veyra", href: "/company/about" },
       { label: "Clean Fleet Commitment", href: "/company/sustainability" },
-      { label: "Locations & Hubs", href: "/locations" },
+      { label: "Operating Hub", href: "/locations" },
       { label: "Privacy Policy", href: "/legal/privacy" },
       { label: "Terms of Service", href: "/legal/terms" },
     ],
@@ -71,10 +71,10 @@ export function CustomerFooter() {
               </span>
             </Link>
             <p className="max-w-sm text-sm text-muted-foreground leading-relaxed">
-              Curated luxury and executive car rental. Instant reservation, guaranteed models, and seamless airport or city delivery.
+              Veyra serves customers in Butuan City, Agusan del Norte. Instant reservation, guaranteed models, and prompt local handover.
             </p>
             <div className="pt-2 flex flex-wrap items-center gap-3">
-              <StatusBadge status="success" label="Fleet Available 24/7" size="sm" />
+              <StatusBadge status="success" label="Butuan Hub Live 24/7" size="sm" />
               <StatusBadge status="neutral" label="Verified Clean Fleet" size="sm" />
             </div>
           </div>
@@ -106,7 +106,7 @@ export function CustomerFooter() {
         {/* Bottom Bar */}
         <div className="pt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between text-xs text-muted-foreground">
           <div className="flex items-center gap-2">
-            <span>&copy; {new Date().getFullYear()} Veyra Mobility Technologies. All rights reserved.</span>
+            <span>&copy; {new Date().getFullYear()} Veyra Mobility Technologies • Butuan City, Agusan del Norte, Philippines. All rights reserved.</span>
           </div>
 
           <div className="flex flex-wrap items-center gap-6">

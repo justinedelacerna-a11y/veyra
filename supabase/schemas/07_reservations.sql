@@ -1,4 +1,4 @@
-﻿-- ============================================================
+-- ============================================================
 -- Veyra -- Reservations (07)
 -- Tables: reservations, reservation_extras, reservation_drivers
 -- ============================================================
@@ -102,7 +102,7 @@ CREATE INDEX IF NOT EXISTS idx_reservations_overlap_btree
 CREATE INDEX IF NOT EXISTS idx_reservations_overlap_gist
   ON public.reservations USING gist (
     vehicle_id,
-    tsrange(pickup_at, return_at, '[)')
+    tstzrange(pickup_at, return_at, '[)')
   )
   WHERE status NOT IN ('cancelled', 'no_show', 'expired', 'payment_failed', 'completed', 'draft');
 

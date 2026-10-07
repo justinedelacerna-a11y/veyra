@@ -1,4 +1,4 @@
-﻿-- ============================================================
+-- ============================================================
 -- Veyra -- Availability (04)
 -- Tables: availability_blocks
 -- ============================================================
@@ -29,12 +29,12 @@ CREATE INDEX IF NOT EXISTS idx_availability_blocks_vehicle_id
 -- GiST range overlap index: enables the && overlap operator for availability queries.
 -- Requires btree_gist extension (declared in 00_extensions.sql).
 -- Used for: "find all blocks that overlap a given [pickup_at, return_at) window"
--- Query pattern: WHERE vehicle_id = $v AND tsrange(starts_at, ends_at, '[)') && tsrange($pickup, $return, '[)')
+-- Query pattern: WHERE vehicle_id = $v AND tstzrange(starts_at, ends_at, '[)') && tstzrange($pickup, $return, '[)')
 -- Ref: docs/database/indexes.md section 2.2
 CREATE INDEX IF NOT EXISTS idx_availability_blocks_gist
   ON public.availability_blocks USING gist (
     vehicle_id,
-    tsrange(starts_at, ends_at, '[)')
+    tstzrange(starts_at, ends_at, '[)')
   );
 
 COMMENT ON TABLE  public.availability_blocks          IS 'Explicit vehicle availability blocks for maintenance, holds, cleaning, etc. Uses half-open [) intervals.';

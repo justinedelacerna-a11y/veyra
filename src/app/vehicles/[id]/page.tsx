@@ -9,19 +9,19 @@ import { StatusBadge } from "@/components/common/status-badge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { MOCK_VEHICLES } from "@/lib/mock/vehicles"
+import { getVehicleById } from "@/features/vehicles/server"
+import { getLiveLocations } from "@/features/search/server/locations-repository"
+import { VehicleGallery } from "@/features/vehicles/components/vehicle-gallery"
 import {
   RiUserLine,
   RiSuitcaseLine,
   RiGasStationLine,
   RiFlashlightLine,
-  RiSteeringLine,
   RiDoorLine,
   RiSpeedUpLine,
   RiDashboard3Line,
   RiCheckDoubleLine,
   RiStarFill,
-  RiShieldCheckLine,
   RiSparklingLine,
   RiArrowLeftLine,
   RiRoadMapLine,
@@ -44,7 +44,7 @@ export async function generateMetadata({
   params,
 }: VehicleDetailPageProps): Promise<Metadata> {
   const { id } = await params
-  const vehicle = MOCK_VEHICLES.find((v) => v.id === id)
+  const { data: vehicle } = await getVehicleById(id)
 
   if (!vehicle) {
     return {
@@ -53,8 +53,8 @@ export async function generateMetadata({
   }
 
   return {
-    title: `${vehicle.year} ${vehicle.make} ${vehicle.model} — Rental Details | Veyra`,
-    description: `Reserve the exact ${vehicle.year} ${vehicle.make} ${vehicle.model}. Guaranteed model, verified condition, with prompt valet handover.`,
+    title: `${vehicle.year} ${vehicle.make} ${vehicle.model} — Rental in Butuan City | Veyra`,
+    description: `Reserve the exact ${vehicle.year} ${vehicle.make} ${vehicle.model} in Butuan City, Agusan del Norte. Guaranteed model, verified condition, with prompt local handover.`,
   }
 }
 
@@ -65,7 +65,10 @@ export default async function VehicleDetailPage({
   const { id } = await params
   const resolvedSearchParams = await searchParams
 
-  const vehicle = MOCK_VEHICLES.find((v) => v.id === id)
+  const [{ data: vehicle }, locations] = await Promise.all([
+    getVehicleById(id),
+    getLiveLocations(),
+  ])
 
   if (!vehicle) {
     notFound()
@@ -143,46 +146,8 @@ export default async function VehicleDetailPage({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 mt-8 items-start">
             {/* Primary Details Column */}
             <div className="lg:col-span-8 space-y-10">
-              {/* Featured Visual Showcase Area */}
-              <div className="rounded-2xl border bg-gradient-to-b from-muted/40 via-muted/10 to-card overflow-hidden shadow-xs">
-                <div className="relative flex h-72 sm:h-96 w-full items-center justify-center p-8">
-                  {/* Subtle Background Glow */}
-                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-30">
-                    <div className="size-64 rounded-full bg-primary/20 blur-3xl" />
-                  </div>
-
-                  {/* Stylized Vehicle Silhouette Centerpiece */}
-                  <div className="relative flex flex-col items-center justify-center z-10 text-center">
-                    <div className="flex size-32 sm:size-40 items-center justify-center rounded-3xl bg-primary/10 text-primary shadow-inner">
-                      <RiSteeringLine className="size-20 sm:size-24" />
-                    </div>
-                    <div className="mt-4 text-xs font-mono font-bold tracking-widest uppercase text-muted-foreground">
-                      {vehicle.year} {vehicle.make} • {vehicle.category}
-                    </div>
-                  </div>
-
-                  {/* Badges in preview */}
-                  <div className="absolute bottom-4 left-4 z-10">
-                    <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-background/90 backdrop-blur-xs px-3 py-1.5 rounded-lg border shadow-xs text-foreground">
-                      <RiShieldCheckLine className="size-4 text-emerald-500" />
-                      <span>Cleaned & Sanitized Prior to Release</span>
-                    </span>
-                  </div>
-                </div>
-
-                {/* View angle indicators */}
-                <div className="grid grid-cols-3 border-t border-border/60 bg-muted/20 text-center text-xs font-medium text-muted-foreground">
-                  <div className="py-2.5 border-r border-border/40 font-semibold text-foreground bg-background/40">
-                    Exterior Profile
-                  </div>
-                  <div className="py-2.5 border-r border-border/40">
-                    Driver Cockpit
-                  </div>
-                  <div className="py-2.5">
-                    Passenger Cabin
-                  </div>
-                </div>
-              </div>
+              {/* Featured Visual Showcase Gallery */}
+              <VehicleGallery vehicle={vehicle} />
 
               {/* Technical Specifications Grid */}
               <div className="space-y-4">
@@ -317,10 +282,10 @@ export default async function VehicleDetailPage({
                       <RiKeyLine className="size-5" />
                     </div>
                     <h3 className="font-heading text-sm font-semibold text-foreground">
-                      Valet Bay Handover
+                      Butuan Hub Handover
                     </h3>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      Pre-verify your driver profile online. Walk directly to our terminal valet zone for key release.
+                      Pre-verify your driver profile online. Prompt walkthrough and key release at our Butuan City Operations Hub.
                     </p>
                   </div>
 
@@ -332,7 +297,7 @@ export default async function VehicleDetailPage({
                       Multi-Point Prep
                     </h3>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      Every car undergoes technical inspection, fluid verification, and complete cabin sanitization.
+                      Every car undergoes technical inspection, fluid verification, and complete cabin sanitization before handover.
                     </p>
                   </div>
 
@@ -341,10 +306,10 @@ export default async function VehicleDetailPage({
                       <RiRoadMapLine className="size-5" />
                     </div>
                     <h3 className="font-heading text-sm font-semibold text-foreground">
-                      Return Flexibility
+                      Return at Butuan Hub
                     </h3>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      Return to your scheduled hub or coordinate an alternate return location with our 24/7 concierge.
+                      Seamless vehicle return at our Butuan City Operations Hub with fast inspection and prompt deposit close-out.
                     </p>
                   </div>
                 </div>
@@ -361,6 +326,7 @@ export default async function VehicleDetailPage({
                 fromTime={resolvedSearchParams.fromTime}
                 to={resolvedSearchParams.to}
                 toTime={resolvedSearchParams.toTime}
+                locations={locations}
               />
             </aside>
           </div>

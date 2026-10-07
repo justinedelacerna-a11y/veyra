@@ -22,9 +22,9 @@ import {
 } from "@remixicon/react"
 
 export const metadata: Metadata = {
-  title: "Help & Support — Veyra",
+  title: "Help & Support — Veyra Butuan City",
   description:
-    "Get answers to reservation questions, cancellation policy, damage protection, and contact Veyra's 24/7 concierge desk.",
+    "Get answers to reservation questions, roadside assistance, and contact Veyra's 24/7 concierge desk in Butuan City, Agusan del Norte.",
 }
 
 const faqItems = [
@@ -97,11 +97,11 @@ const contactChannels = [
   },
   {
     icon: RiMapPinLine,
-    label: "Hub Locations",
-    value: "6 Active Hubs",
-    subtext: "Across CDO, Davao, Cebu & Iligan",
+    label: "Operating Hub",
+    value: "Butuan City Hub",
+    subtext: "Butuan City, Agusan del Norte",
     action: "/locations",
-    actionLabel: "View All Hubs",
+    actionLabel: "View Operating Hub",
   },
 ]
 

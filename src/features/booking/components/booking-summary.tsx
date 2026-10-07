@@ -3,15 +3,14 @@
 import * as React from "react"
 import Link from "next/link"
 import { useBooking } from "../context/booking-context"
-import { MOCK_BOOKING_EXTRAS } from "../data/extras"
 import {
-  RiSteeringLine,
   RiMapPinLine,
   RiCalendarLine,
   RiShieldCheckLine,
   RiInformationLine,
   RiCheckLine,
 } from "@remixicon/react"
+import { VehicleImage } from "@/components/ui/vehicle-image"
 import { cn } from "@/lib/utils"
 
 export interface BookingSummaryProps {
@@ -30,6 +29,10 @@ export function BookingSummary({
     rentalDays,
     pricing,
     draft,
+    liveQuote,
+    quoteLoading,
+    quoteError,
+    availableExtras,
   } = useBooking()
 
   // Format dates for display
@@ -46,12 +49,12 @@ export function BookingSummary({
     }
   }
 
-  // Resolve selected extra objects
   const selectedExtraObjects = React.useMemo(() => {
+    const allExtras = availableExtras || []
     return draft.selectedExtras
-      .map((id) => MOCK_BOOKING_EXTRAS.find((e) => e.id === id))
+      .map((id) => allExtras.find((e) => e.id === id || (e as { slug?: string }).slug === id))
       .filter(Boolean)
-  }, [draft.selectedExtras])
+  }, [draft.selectedExtras, availableExtras])
 
   return (
     <div
@@ -72,8 +75,15 @@ export function BookingSummary({
         </div>
 
         <div className="flex items-start gap-3">
-          <div className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
-            <RiSteeringLine className="size-7" />
+          <div className="relative size-16 shrink-0 rounded-xl overflow-hidden border border-border/80 bg-muted/30">
+            <VehicleImage
+              src={vehicle.primaryImage || vehicle.images?.[0] || null}
+              alt={`${vehicle.make} ${vehicle.model}`}
+              aspectRatio="none"
+              category={vehicle.category}
+              containerClassName="size-16"
+              showFallbackBadge={false}
+            />
           </div>
 
           <div className="min-w-0 flex-1">
@@ -204,6 +214,20 @@ export function BookingSummary({
           </span>
         </div>
 
+        {/* Quote Error or Loading State */}
+        {quoteLoading && (
+          <div className="flex items-center gap-1.5 text-[11px] text-primary animate-pulse pt-1">
+            <span className="inline-block size-2 rounded-full bg-primary" />
+            <span>Calculating live server quote...</span>
+          </div>
+        )}
+
+        {quoteError && (
+          <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-2.5 text-[11px] text-destructive font-medium">
+            ⚠️ {quoteError}
+          </div>
+        )}
+
         {/* Total Rental Cost */}
         <div className="flex items-baseline justify-between pt-3 border-t border-border/60">
           <div className="flex flex-col">
@@ -211,7 +235,7 @@ export function BookingSummary({
               Total Rental Price
             </span>
             <span className="text-[11px] text-muted-foreground">
-              All mandatory fees included
+              {liveQuote ? "Authoritative live quote" : "All mandatory fees included"}
             </span>
           </div>
           <span className="font-heading text-xl font-bold text-primary">

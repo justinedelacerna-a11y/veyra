@@ -25,11 +25,17 @@ export function ReservationsFilterView({
     if (selectedTab === "active") {
       return initialReservations.filter((r) => r.status === "active")
     }
+    if (selectedTab === "returning") {
+      return initialReservations.filter((r) => r.status === "return_inspection")
+    }
     if (selectedTab === "past") {
       return initialReservations.filter((r) => r.status === "completed")
     }
     if (selectedTab === "cancelled") {
       return initialReservations.filter((r) => r.status === "cancelled")
+    }
+    if (selectedTab === "exceptions") {
+      return initialReservations.filter((r) => r.status === "disputed" || r.status === "no_show")
     }
     return initialReservations
   }, [initialReservations, selectedTab])
@@ -39,8 +45,10 @@ export function ReservationsFilterView({
       all: initialReservations.length,
       upcoming: initialReservations.filter((r) => r.status === "upcoming").length,
       active: initialReservations.filter((r) => r.status === "active").length,
+      returning: initialReservations.filter((r) => r.status === "return_inspection").length,
       past: initialReservations.filter((r) => r.status === "completed").length,
       cancelled: initialReservations.filter((r) => r.status === "cancelled").length,
+      exceptions: initialReservations.filter((r) => r.status === "disputed" || r.status === "no_show").length,
     }
   }, [initialReservations])
 
@@ -71,6 +79,14 @@ export function ReservationsFilterView({
               </span>
             )}
           </TabsTrigger>
+          <TabsTrigger value="returning" className="text-xs sm:text-sm">
+            <span>Returning</span>
+            {counts.returning > 0 && (
+              <span className="ml-1.5 text-[11px] px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-300 font-mono">
+                {counts.returning}
+              </span>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="past" className="text-xs sm:text-sm">
             <span>Completed</span>
             {counts.past > 0 && (
@@ -87,6 +103,14 @@ export function ReservationsFilterView({
               </span>
             )}
           </TabsTrigger>
+          {counts.exceptions > 0 && (
+            <TabsTrigger value="exceptions" className="text-xs sm:text-sm">
+              <span>Exceptions</span>
+              <span className="ml-1.5 text-[11px] px-1.5 py-0.2 rounded-full bg-destructive/20 text-destructive font-mono">
+                {counts.exceptions}
+              </span>
+            </TabsTrigger>
+          )}
         </TabsList>
       </Tabs>
 

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Emerald rounded-square background -->
+  <rect width="32" height="32" rx="7" fill="#10b981"/>
+
+  <!-- Speed lines (left, sweeping right) -->
+  <rect x="5" y="13.5" width="10" height="2.5" rx="1.25" fill="white" opacity="0.75"/>
+  <rect x="5" y="18" width="8" height="2.5" rx="1.25" fill="white" opacity="0.55"/>
+
+  <!-- Forward chevron arrow -->
+  <path d="M13 9 L22 16 L13 23 L13 19 L18 16 L13 13 Z" fill="white"/>
+</svg>

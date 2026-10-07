@@ -19,7 +19,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Veyra — Local Car Rental in Butuan City, Agusan del Norte",
   description:
-    "Local car rental in Butuan City, Agusan del Norte, Philippines. Luxury SUVs, executive sedans, and high-performance electric vehicles with guaranteed models and prompt local handover.",
+    "Reliable car rental in Butuan City, Agusan del Norte, Philippines. Clean sedans, hatchbacks, and MPVs with guaranteed models, transparent rates, and prompt local handover.",
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+    apple: "/apple-icon.png",
+  },
 }
 
 export default function RootLayout({

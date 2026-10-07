@@ -45,7 +45,7 @@ export async function LocationsSection() {
             return (
               <div
                 key={loc.id}
-                className="flex flex-col justify-between p-5 rounded-xl border bg-card/60 hover:bg-card hover:shadow-xs transition-colors gap-4"
+                className="flex flex-col justify-between p-5 rounded-xl border border-border/80 bg-card hover:border-primary/40 hover:shadow-md transition-all duration-200 gap-4"
               >
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">

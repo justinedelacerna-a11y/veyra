@@ -37,13 +37,13 @@ const trustPillars: TrustPillar[] = [
 
 export function TrustReassurance() {
   return (
-    <div className="rounded-2xl border bg-muted/20 p-6 sm:p-8 lg:p-10">
+    <div className="rounded-2xl border border-border/80 bg-card/95 backdrop-blur-md p-6 sm:p-8 lg:p-10 shadow-lg">
       <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
         {trustPillars.map((pillar) => {
           const Icon = pillar.icon
           return (
-            <div key={pillar.title} className="flex flex-col gap-3">
-              <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <div key={pillar.title} className="flex flex-col gap-3 group">
+              <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 group-hover:scale-105 transition-transform">
                 <Icon className="size-5" />
               </div>
               <h3 className="font-heading text-base font-semibold text-foreground">

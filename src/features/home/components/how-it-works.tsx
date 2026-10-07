@@ -18,7 +18,7 @@ const steps: StepItem[] = [
   {
     step: "01",
     title: "Select Dates & Pickup Hub",
-    description: "Choose your travel window and whether you prefer an airport terminal valet handover or central city branch pickup.",
+    description: "Choose your travel dates and select your preferred barangay hub across Butuan City for easy key handover.",
     icon: RiCalendarEventLine,
   },
   {
@@ -30,7 +30,7 @@ const steps: StepItem[] = [
   {
     step: "03",
     title: "Inspect & Drive Away",
-    description: "Complete key release in under three minutes with digital verification. Drop keys back at the designated valet zone on return.",
+    description: "Complete key release in under three minutes with digital verification. Drop keys back at your chosen barangay hub on return.",
     icon: RiKeyLine,
   },
 ]
@@ -54,7 +54,7 @@ export function HowItWorks() {
           return (
             <div
               key={item.step}
-              className="relative flex flex-col justify-between p-6 sm:p-8 rounded-2xl border bg-card/60 shadow-xs hover:border-primary/30 transition-colors"
+              className="relative flex flex-col justify-between p-6 sm:p-8 rounded-2xl border border-border/80 bg-card shadow-xs hover:border-primary/40 hover:shadow-md transition-all duration-200"
             >
               <div className="space-y-4">
                 <div className="flex items-center justify-between">

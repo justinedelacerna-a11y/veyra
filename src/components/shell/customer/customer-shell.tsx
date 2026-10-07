@@ -15,9 +15,9 @@ export function CustomerShell({
   hideFooter = false,
 }: CustomerShellProps) {
   return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground">
+    <div className="flex min-h-screen flex-col bg-background text-foreground overflow-x-clip">
       <CustomerHeader />
-      <main id="main-content" className={cn("flex-1", className)}>
+      <main id="main-content" className={cn("flex-1 w-full", className)}>
         {children}
       </main>
       {!hideFooter && <CustomerFooter />}

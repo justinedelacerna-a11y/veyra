@@ -68,7 +68,7 @@ export function WhyChooseVeyra() {
           return (
             <div
               key={benefit.title}
-              className="flex flex-col gap-3 p-6 rounded-xl border bg-card/40 hover:bg-card hover:shadow-xs transition-colors"
+              className="flex flex-col gap-3 p-6 rounded-xl border border-border/80 bg-card hover:border-primary/40 hover:shadow-xs transition-all duration-200"
             >
               <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <Icon className="size-4.5" />

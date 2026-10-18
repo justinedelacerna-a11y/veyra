@@ -361,9 +361,15 @@ export async function getCustomerKycStatus(): Promise<CustomerKycSummary> {
 
     const hasDriverLicense = dlDoc?.status === "approved"
     const hasGovernmentId = govDoc?.status === "approved"
-    const hasPendingDocs = documents.some((d) => d.status === "pending_review")
-    const hasRejectedDocs = documents.some((d) => d.status === "rejected")
-    const rejectedDoc = documents.find((d) => d.status === "rejected")
+
+    // Only mandatory identity documents (driver's license and primary government ID) govern KYC clearance.
+    // Optional supplemental documents (such as proof of billing/address) do not block or alter KYC clearance.
+    const requiredDocs = documents.filter(
+      (d) => d.category === "driver_license" || d.category === "government_id" || d.category === "passport"
+    )
+    const hasPendingRequiredDocs = requiredDocs.some((d) => d.status === "pending_review")
+    const hasRejectedRequiredDocs = requiredDocs.some((d) => d.status === "rejected")
+    const rejectedDoc = requiredDocs.find((d) => d.status === "rejected")
 
     let status: KycVerificationStatus = "not_submitted"
     let statusLabel = "Not Submitted"
@@ -373,13 +379,13 @@ export async function getCustomerKycStatus(): Promise<CustomerKycSummary> {
     if (rawStatus === "verified" || hasDriverLicense) {
       status = "verified"
       statusLabel = "Verified"
-    } else if (rawStatus === "rejected" || hasRejectedDocs) {
+    } else if (rawStatus === "rejected" || hasRejectedRequiredDocs) {
       status = "rejected"
       statusLabel = "Rejected — Action Required"
     } else if (rawStatus === "requires_resubmission") {
       status = "requires_resubmission"
       statusLabel = "Requires Resubmission"
-    } else if (rawStatus === "pending" || hasPendingDocs || documents.length > 0) {
+    } else if (rawStatus === "pending" || hasPendingRequiredDocs || requiredDocs.length > 0) {
       status = "pending_review"
       statusLabel = "Pending Review"
     } else {

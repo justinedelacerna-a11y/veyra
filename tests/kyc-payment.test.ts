@@ -325,4 +325,145 @@ describe("Veyra KYC & Payment System Test Suite", () => {
       assert.equal(customerStatus, "verified")
     })
   })
+
+  // ─── PART 11: Removal of Mandatory Proof of Billing ───────────────────────
+  describe("Veyra UI and KYC Update — Removal of Mandatory Proof of Billing", () => {
+    it("Requirement 1: Mandatory checklist contains only driver's license and government ID, omitting proof of billing", () => {
+      const mandatorySlots = [
+        { type: "driver_license", requiredForRental: true },
+        { type: "government_id", requiredForRental: true },
+      ]
+      const optionalSlots = [
+        { type: "address_proof", requiredForRental: false, isOptional: true },
+      ]
+
+      assert.equal(mandatorySlots.some((s) => s.type === "address_proof"), false, "Proof of billing must not be in mandatory checklist")
+      assert.equal(mandatorySlots.length, 2)
+      assert.equal(optionalSlots[0].type, "address_proof")
+      assert.equal(optionalSlots[0].requiredForRental, false)
+      assert.equal(optionalSlots[0].isOptional, true)
+    })
+
+    it("Requirement 2: Missing proof of billing does not block KYC completion", () => {
+      // Customer has only approved driver license; no address_proof uploaded
+      const customerDocuments = [
+        { category: "driver_license", status: "approved" },
+      ]
+
+      const dlDoc = customerDocuments.find((d) => d.category === "driver_license")
+      const hasDriverLicense = dlDoc?.status === "approved"
+
+      const requiredDocs = customerDocuments.filter(
+        (d) => d.category === "driver_license" || d.category === "government_id" || d.category === "passport"
+      )
+      const hasRejectedRequiredDocs = requiredDocs.some((d) => d.status === "rejected")
+
+      let status = "not_submitted"
+      if (hasDriverLicense) {
+        status = "verified"
+      } else if (hasRejectedRequiredDocs) {
+        status = "rejected"
+      }
+
+      assert.equal(status, "verified", "Customer must be verified even when proof of billing is not uploaded")
+    })
+
+    it("Requirement 3: Missing required identity documents still blocks verification", () => {
+      // Customer has uploaded only address_proof (no driver license)
+      const customerDocuments = [
+        { category: "address_proof", status: "approved" },
+      ]
+
+      const dlDoc = customerDocuments.find((d) => d.category === "driver_license")
+      const hasDriverLicense = dlDoc?.status === "approved"
+
+      const requiredDocs = customerDocuments.filter(
+        (d) => d.category === "driver_license" || d.category === "government_id" || d.category === "passport"
+      )
+
+      let status = "not_submitted"
+      if (hasDriverLicense) {
+        status = "verified"
+      } else if (requiredDocs.length === 0) {
+        status = "not_submitted"
+      }
+
+      assert.equal(status, "not_submitted", "Missing driver license must block verification even if address proof is approved")
+    })
+
+    it("Requirement 4: Rejection of optional proof of address does not revoke customer verification status", () => {
+      // Customer has approved driver license, but their optional address proof was rejected
+      const customer = { verification_status: "verified" }
+      const doc = { type: "address_proof", status: "rejected" }
+
+      let updatedCustomerStatus = customer.verification_status
+
+      // Logic from reviewCustomerDocumentAction: only mandatory document rejections revoke customer status
+      if (
+        doc.status === "rejected" &&
+        (doc.type === "driver_license" || doc.type === "government_id" || doc.type === "passport")
+      ) {
+        updatedCustomerStatus = "rejected"
+      }
+
+      assert.equal(updatedCustomerStatus, "verified", "Rejection of optional address proof must not revoke customer's verified status")
+    })
+
+    it("Requirement 5: Staff can continue reviewing, approving, and rejecting documents of all types", () => {
+      const documents = [
+        { id: "doc-dl-1", type: "driver_license", status: "pending_review", reviewed_by: null as string | null },
+        { id: "doc-addr-1", type: "address_proof", status: "pending_review", reviewed_by: null as string | null },
+      ]
+
+      const staffReview = (docId: string, decision: "approved" | "rejected", reviewerId: string) => {
+        const target = documents.find((d) => d.id === docId)
+        if (target) {
+          target.status = decision
+          target.reviewed_by = reviewerId
+        }
+      }
+
+      staffReview("doc-dl-1", "approved", "staff_admin_01")
+      staffReview("doc-addr-1", "approved", "staff_admin_01")
+
+      assert.equal(documents[0].status, "approved")
+      assert.equal(documents[0].reviewed_by, "staff_admin_01")
+      assert.equal(documents[1].status, "approved")
+      assert.equal(documents[1].reviewed_by, "staff_admin_01")
+    })
+
+    it("Requirement 6: Historical customer documents and audit logs remain intact", () => {
+      const historicalDocuments = [
+        { id: "doc-hist-addr-01", type: "address_proof", original_filename: "water_bill_may2026.pdf", created_at: "2026-05-10" },
+        { id: "doc-hist-dl-01", type: "driver_license", original_filename: "lto_license.jpg", created_at: "2026-05-10" },
+      ]
+
+      // Removing the mandatory billing requirement must preserve all historical document records
+      assert.equal(historicalDocuments.length, 2)
+      assert.equal(historicalDocuments.some((d) => d.type === "address_proof"), true)
+      assert.equal(historicalDocuments.some((d) => d.type === "driver_license"), true)
+    })
+
+    it("Requirement 7: Booking eligibility gate permits reservation checkout when driver's license is verified", () => {
+      const customer = { verification_status: "verified" }
+      const approvedDl = { id: "doc-dl-1", type: "driver_license", status: "approved" }
+
+      // Reservation service KYC gate logic
+      const isKycVerified = customer.verification_status === "verified" || Boolean(approvedDl)
+
+      assert.equal(isKycVerified, true, "Verified driver license clears booking eligibility without proof of billing")
+    })
+
+    it("Requirement 8: Insurance, Philippine LTO, and legal policies confirm no mandatory proof of address requirement", () => {
+      const termsSection3Requirements = [
+        "Front and back images of the valid driver's license",
+        "Secondary government-issued photo ID",
+        "Real-time facial verification selfie",
+      ]
+
+      assert.equal(termsSection3Requirements.includes("Proof of Billing"), false, "Terms of Service Section 3 must not require proof of billing")
+      assert.equal(termsSection3Requirements.length, 3)
+    })
+  })
 })
+

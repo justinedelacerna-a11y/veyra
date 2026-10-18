@@ -17,7 +17,7 @@ export async function GET() {
       {
         success: true,
         minDays: 1,
-        maxDays: 30,
+        maxDays: null,
       },
       { status: 200 }
     )

@@ -325,7 +325,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
   // --- Live Duration Limits state ---
   const [durationLimits, setDurationLimits] = React.useState<{ minDays: number; maxDays: number | null }>({
     minDays: 1,
-    maxDays: 30,
+    maxDays: null,
   })
   const [durationError, setDurationError] = React.useState<string | null>(null)
 
@@ -338,7 +338,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         if (!cancelled && data.success && typeof data.minDays === "number") {
           setDurationLimits({
             minDays: data.minDays,
-            maxDays: data.maxDays !== undefined ? data.maxDays : 30,
+            maxDays: data.maxDays !== undefined ? data.maxDays : null,
           })
         }
       })

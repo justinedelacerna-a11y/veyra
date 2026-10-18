@@ -254,7 +254,7 @@ export function VehicleStep() {
                   <span>Rental Duration (Days)</span>
                 </label>
                 <span className="text-[10px] text-muted-foreground font-medium">
-                  Min: {durationLimits.minDays}d · Max: {durationLimits.maxDays ?? 30}d
+                  Min: {durationLimits.minDays}d · {durationLimits.maxDays !== null ? `Max: ${durationLimits.maxDays}d` : "Unlimited Duration"}
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
@@ -272,7 +272,7 @@ export function VehicleStep() {
                   id="rental-duration-days-input"
                   type="number"
                   min={durationLimits.minDays}
-                  max={durationLimits.maxDays ?? 30}
+                  max={durationLimits.maxDays !== null ? durationLimits.maxDays : undefined}
                   value={rentalDays || ""}
                   onChange={(e) => {
                     const val = parseInt(e.target.value, 10)

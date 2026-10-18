@@ -49,7 +49,6 @@ export function RentalDurationSettingsForm({ initialMinDays, initialMaxDays }: P
             name="max_days"
             type="number"
             min={1}
-            max={365}
             defaultValue={initialMaxDays ?? ""}
             placeholder="No limit"
             className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"

@@ -1095,7 +1095,12 @@ export async function reviewCustomerDocumentAction(
           updated_at: now,
         })
         .eq("id", doc.customer_id)
-    } else if (decision === "rejected") {
+    } else if (
+      decision === "rejected" &&
+      (doc.type === "driver_license" || doc.type === "government_id" || doc.type === "passport")
+    ) {
+      // Only mandatory identity credential rejections revoke customer verification status.
+      // Rejection of optional supplemental documents (such as proof of billing/address) only affects the document record.
       await supabase
         .from("customers")
         .update({

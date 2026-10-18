@@ -72,12 +72,12 @@ export const MOCK_DOCUMENTS: CustomerDocument[] = [
   },
   {
     id: "doc-billing-proof",
-    title: "Proof of Billing / Residential Address",
+    title: "Proof of Billing / Residential Address (Optional)",
     category: "address_proof",
     description:
-      "Utility statement or banking document issued within the last 90 days matching your profile address.",
+      "Utility statement or banking document. Optional supplemental document; not required for customer KYC verification or booking clearance.",
     status: "not_uploaded",
-    statusLabel: "Optional for Standard Tiers",
+    statusLabel: "Optional • Not Submitted",
     requiredForRental: false,
   },
 ]

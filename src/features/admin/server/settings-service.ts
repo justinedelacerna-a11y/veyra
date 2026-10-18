@@ -8,7 +8,7 @@ export interface RentalDurationConfig {
 
 const DEFAULT_CONFIG: RentalDurationConfig = {
   minDays: 1,
-  maxDays: 30,
+  maxDays: null,
 }
 
 /**
@@ -32,7 +32,7 @@ export async function getRentalDurationConfig(): Promise<RentalDurationConfig> {
     const value = data.value as Record<string, unknown>
     const minDays = typeof value.min_days === "number" ? value.min_days : DEFAULT_CONFIG.minDays
     const maxDays =
-      value.max_days === null
+      value.max_days === null || value.max_days === undefined
         ? null
         : typeof value.max_days === "number"
         ? value.max_days

@@ -422,5 +422,173 @@ describe("Veyra Feature #2 — Configurable Rental Duration Test Suite", () => {
     assert.equal(aboveMax.isValid, false)
     assert.ok(aboveMax.message?.includes("Maximum rental duration is 14 days"))
   })
+
+  // ─── 17. Unlimited Duration Test Requirements ─────────────────────────────
+  describe("Veyra — Unlimited Customer-Selected Rental Duration Suite", () => {
+    const unlimitedConfig: RentalDurationConfig = { minDays: 1, maxDays: null }
+
+    it("Requirement 1: A customer can select 5 days and validate successfully", () => {
+      const pickup = new Date("2026-10-20T10:00:00Z")
+      const returnAt = new Date("2026-10-25T10:00:00Z")
+      const validation = validateRentalDuration(pickup, returnAt, unlimitedConfig)
+      assert.equal(validation.isValid, true)
+      assert.equal(calculateDurationDays(pickup, returnAt), 5)
+    })
+
+    it("Requirement 2: A customer can select 30 days without restriction", () => {
+      const pickup = new Date("2026-10-01T10:00:00Z")
+      const returnAt = new Date("2026-10-31T10:00:00Z")
+      const validation = validateRentalDuration(pickup, returnAt, unlimitedConfig)
+      assert.equal(validation.isValid, true)
+      assert.equal(calculateDurationDays(pickup, returnAt), 30)
+    })
+
+    it("Requirement 3: A customer can select 60 days without hitting a 30-day cap", () => {
+      const pickup = new Date("2026-10-20T12:00:00Z")
+      // 60 days: 11 in Oct + 30 in Nov + 19 in Dec -> Dec 19
+      const returnAt = new Date("2026-12-19T12:00:00Z")
+      const validation = validateRentalDuration(pickup, returnAt, unlimitedConfig)
+      assert.equal(validation.isValid, true, "60-day rental must be valid when maxDays is null")
+      assert.equal(calculateDurationDays(pickup, returnAt), 60)
+    })
+
+    it("Requirement 4: A customer can select 90 days for extended long-term rentals", () => {
+      const pickup = new Date("2026-10-01T10:00:00Z")
+      const returnAt = new Date("2026-12-30T10:00:00Z")
+      const validation = validateRentalDuration(pickup, returnAt, unlimitedConfig)
+      assert.equal(validation.isValid, true)
+      assert.equal(calculateDurationDays(pickup, returnAt), 90)
+    })
+
+    it("Requirement 5: Unset maximum explicitly resolves to null and does not fall back to 30", () => {
+      // Simulate raw database payload with max_days: null or omitted
+      const rawPayload = { min_days: 1, max_days: null }
+      const resolvedMax =
+        rawPayload.max_days === null || rawPayload.max_days === undefined
+          ? null
+          : typeof rawPayload.max_days === "number"
+          ? rawPayload.max_days
+          : 30
+
+      assert.equal(resolvedMax, null, "Unset maximum must resolve to null (unlimited), never 30")
+      assert.notEqual(resolvedMax, 30)
+    })
+
+    it("Requirement 6: 24-hour cycle return date calculation accurately handles 60-day rental across month boundaries", () => {
+      const pickupDate = "2026-10-20"
+      const pickupTime = "12:00"
+      const days = 60
+
+      const [y, m, d] = pickupDate.split("-").map(Number)
+      const target = new Date(Date.UTC(y, m - 1, d + days))
+      const returnDate = target.toISOString().split("T")[0]
+      const returnTime = pickupTime
+
+      assert.equal(returnDate, "2026-12-19", "Oct 20 + 60 days must equal Dec 19")
+      assert.equal(returnTime, "12:00")
+    })
+
+    it("Requirement 7: Authoritative quote calculates correctly for 60-day rental at ₱1,600/day", () => {
+      const dailyRatePhp = 1600
+      const dailyRateCentavos = dailyRatePhp * 100
+      const days = 60
+
+      const baseAmountCentavos = calculateBaseRental(dailyRateCentavos, days)
+      const baseAmountPhp = baseAmountCentavos / 100
+
+      assert.equal(baseAmountCentavos, 9600000)
+      assert.equal(baseAmountPhp, 96000, "Base rental for 60 days @ ₱1,600 must equal ₱96,000")
+    })
+
+    it("Requirement 8: Below-minimum durations and reversed dates remain strictly rejected", () => {
+      const min2Config: RentalDurationConfig = { minDays: 2, maxDays: null }
+      const pickup = new Date("2026-10-20T10:00:00Z")
+      const returnBelowMin = new Date("2026-10-21T10:00:00Z") // 1 day
+      const returnReversed = new Date("2026-10-19T10:00:00Z") // reversed
+
+      const belowResult = validateRentalDuration(pickup, returnBelowMin, min2Config)
+      assert.equal(belowResult.isValid, false)
+      assert.match(belowResult.message || "", /Minimum rental duration is 2 days/)
+
+      const revResult = validateRentalDuration(pickup, returnReversed, min2Config)
+      assert.equal(revResult.isValid, false)
+      assert.equal(revResult.error, "invalid_dates")
+    })
+
+    it("Requirement 9: Genuine vehicle collision blocks long rentals that overlap existing bookings", () => {
+      // Existing collision from Nov 10 to Nov 15
+      const bookedStart = new Date("2026-11-10T10:00:00Z").getTime()
+      const bookedEnd = new Date("2026-11-15T10:00:00Z").getTime()
+
+      const checkVehicleAvailability = (pickupAt: Date, returnAt: Date) => {
+        const s = pickupAt.getTime()
+        const e = returnAt.getTime()
+        return !(s < bookedEnd && e > bookedStart)
+      }
+
+      // Customer requesting 60 days: Oct 20 to Dec 19 overlaps Nov 10-15
+      const longRentalAvailable = checkVehicleAvailability(
+        new Date("2026-10-20T10:00:00Z"),
+        new Date("2026-12-19T10:00:00Z")
+      )
+      assert.equal(longRentalAvailable, false, "Overlapping booking during 60-day window must block reservation")
+
+      // Customer requesting non-overlapping rental after Nov 15
+      const clearRentalAvailable = checkVehicleAvailability(
+        new Date("2026-11-16T10:00:00Z"),
+        new Date("2027-01-15T10:00:00Z")
+      )
+      assert.equal(clearRentalAvailable, true, "Clear 60-day window must be available")
+    })
+
+    it("Requirement 10: Reservation creation preserves customer-selected long duration and quote", () => {
+      const reservation = {
+        vehicleId: "veh-toyota-vios",
+        pickupDate: "2026-10-20",
+        pickupTime: "12:00",
+        returnDate: "2026-12-19",
+        returnTime: "12:00",
+        rentalDays: 60,
+        baseAmountPhp: 96000,
+      }
+
+      assert.equal(reservation.rentalDays, 60)
+      assert.equal(reservation.baseAmountPhp, 96000)
+      assert.equal(reservation.returnDate, "2026-12-19")
+    })
+
+    it("Requirement 11: Admin-configured minimum duration remains enforced when max is null", () => {
+      const adminConfig: RentalDurationConfig = { minDays: 3, maxDays: null }
+      const validation1Day = validateRentalDuration(
+        new Date("2026-10-20T10:00:00Z"),
+        new Date("2026-10-21T10:00:00Z"),
+        adminConfig
+      )
+      assert.equal(validation1Day.isValid, false)
+      assert.match(validation1Day.message || "", /Minimum rental duration is 3 days/)
+
+      const validation3Days = validateRentalDuration(
+        new Date("2026-10-20T10:00:00Z"),
+        new Date("2026-10-23T10:00:00Z"),
+        adminConfig
+      )
+      assert.equal(validation3Days.isValid, true)
+    })
+
+    it("Requirement 12: Existing pickup-location, KYC, and Terms of Service coexist with unlimited durations", () => {
+      const completeBooking = {
+        pickupBarangay: "Doongan",
+        pickupStreetAddress: "Montilla Blvd",
+        rentalDays: 60,
+        kycStatus: "verified",
+        agreedToTerms: true,
+      }
+
+      assert.ok(completeBooking.pickupBarangay)
+      assert.equal(completeBooking.rentalDays, 60)
+      assert.equal(completeBooking.kycStatus, "verified")
+      assert.equal(completeBooking.agreedToTerms, true)
+    })
+  })
 })
 

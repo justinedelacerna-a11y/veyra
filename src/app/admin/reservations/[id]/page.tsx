@@ -123,6 +123,17 @@ export default async function AdminReservationDetailPage({ params }: Props) {
                       {res.pickupBarangay ? `Barangay ${res.pickupBarangay}` : res.pickupLocationName}
                     </div>
                     <div className="text-muted-foreground">Butuan City, Agusan del Norte</div>
+                    {res.pickupStreetAddress && (
+                      <div className="text-xs text-foreground font-medium mt-1.5 pt-1 border-t space-y-0.5">
+                        <div>Address: {res.pickupStreetAddress}</div>
+                        {res.pickupLandmark && (
+                          <div className="text-muted-foreground font-normal">Landmark: {res.pickupLandmark}</div>
+                        )}
+                        {res.pickupContactPhone && (
+                          <div className="text-muted-foreground font-normal">Contact: {res.pickupContactPhone}</div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

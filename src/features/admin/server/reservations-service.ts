@@ -22,6 +22,10 @@ interface RawReservationRow {
   total_amount: number
   deposit_amount: number
   currency: string
+  pickup_barangay?: string | null
+  pickup_street_address?: string | null
+  pickup_landmark?: string | null
+  pickup_contact_phone?: string | null
   internal_notes: string | null
   cancellation_reason: string | null
   created_at: string
@@ -92,7 +96,10 @@ function mapRawToAdminReservation(r: RawReservationRow): AdminReservation {
     branch: r.vehicles?.branches?.name || "Main Hub",
     pickupLocationId: r.pickup_location_id,
     pickupLocationName: r.pickup_locations?.name || "Barangay Libertad Hub",
-    pickupBarangay: r.pickup_locations?.barangay || "Libertad",
+    pickupBarangay: r.pickup_barangay || r.pickup_locations?.barangay || "Libertad",
+    pickupStreetAddress: r.pickup_street_address || undefined,
+    pickupLandmark: r.pickup_landmark || undefined,
+    pickupContactPhone: r.pickup_contact_phone || undefined,
     pickupDate: pickupDateObj.toISOString().split("T")[0],
     pickupTime: pickupDateObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     returnLocationId: r.return_location_id,
@@ -143,6 +150,10 @@ export async function getAdminReservationsList(options?: {
       total_amount,
       deposit_amount,
       currency,
+      pickup_barangay,
+      pickup_street_address,
+      pickup_landmark,
+      pickup_contact_phone,
       internal_notes,
       cancellation_reason,
       created_at,
@@ -179,7 +190,75 @@ export async function getAdminReservationsList(options?: {
     query = query.eq("status", options.status)
   }
 
-  const { data, error } = await query
+  let { data, error } = await query
+
+  // Graceful backward compatibility if remote database has not yet applied the pickup_barangay column migration
+  if (error && error.message?.includes("pickup_barangay")) {
+    let fallbackQuery = supabase
+      .from("reservations")
+      .select(`
+        id,
+        reference,
+        customer_id,
+        quote_id,
+        vehicle_id,
+        assigned_vehicle_id,
+        pickup_location_id,
+        return_location_id,
+        pickup_at,
+        return_at,
+        actual_pickup_at,
+        actual_return_at,
+        rental_days,
+        status,
+        payment_status,
+        payment_method,
+        total_amount,
+        deposit_amount,
+        currency,
+        pickup_street_address,
+        pickup_landmark,
+        pickup_contact_phone,
+        internal_notes,
+        cancellation_reason,
+        created_at,
+        updated_at,
+        customers (
+          id,
+          first_name,
+          last_name,
+          users (id, email)
+        ),
+        vehicles:vehicles!reservations_vehicle_id_fkey (
+          id,
+          make,
+          model,
+          plate_number,
+          branches (name)
+        ),
+        pickup_locations:locations!pickup_location_id (
+          id,
+          name,
+          barangay,
+          city
+        ),
+        return_locations:locations!return_location_id (
+          id,
+          name,
+          barangay,
+          city
+        )
+      `)
+      .order("created_at", { ascending: false })
+
+    if (options?.status && options.status !== "all") {
+      fallbackQuery = fallbackQuery.eq("status", options.status)
+    }
+
+    const fallbackRes = await fallbackQuery
+    data = fallbackRes.data as typeof data
+    error = fallbackRes.error
+  }
 
   if (error) {
     console.error("[getAdminReservationsList] Database query error:", error)
@@ -235,6 +314,10 @@ export async function getAdminReservationById(idOrRef: string): Promise<AdminRes
       total_amount,
       deposit_amount,
       currency,
+      pickup_barangay,
+      pickup_street_address,
+      pickup_landmark,
+      pickup_contact_phone,
       internal_notes,
       cancellation_reason,
       created_at,
@@ -274,7 +357,76 @@ export async function getAdminReservationById(idOrRef: string): Promise<AdminRes
     query = query.eq("reference", idOrRef)
   }
 
-  const { data, error } = await query.maybeSingle()
+  let { data, error } = await query.maybeSingle()
+
+  // Graceful backward compatibility if remote database has not yet applied the pickup_barangay column migration
+  if (error && error.message?.includes("pickup_barangay")) {
+    let fallbackQuery = supabase
+      .from("reservations")
+      .select(`
+        id,
+        reference,
+        customer_id,
+        quote_id,
+        vehicle_id,
+        assigned_vehicle_id,
+        pickup_location_id,
+        return_location_id,
+        pickup_at,
+        return_at,
+        actual_pickup_at,
+        actual_return_at,
+        rental_days,
+        status,
+        payment_status,
+        payment_method,
+        total_amount,
+        deposit_amount,
+        currency,
+        pickup_street_address,
+        pickup_landmark,
+        pickup_contact_phone,
+        internal_notes,
+        cancellation_reason,
+        created_at,
+        updated_at,
+        customers (
+          id,
+          first_name,
+          last_name,
+          users (id, email)
+        ),
+        vehicles:vehicles!reservations_vehicle_id_fkey (
+          id,
+          make,
+          model,
+          plate_number,
+          branches (name)
+        ),
+        pickup_locations:locations!pickup_location_id (
+          id,
+          name,
+          barangay,
+          city
+        ),
+        return_locations:locations!return_location_id (
+          id,
+          name,
+          barangay,
+          city
+        )
+      `)
+
+    if (isUUID) {
+      fallbackQuery = fallbackQuery.eq("id", idOrRef)
+    } else {
+      fallbackQuery = fallbackQuery.eq("reference", idOrRef)
+    }
+
+    const fallbackRes = await fallbackQuery.maybeSingle()
+    data = fallbackRes.data as typeof data
+    error = fallbackRes.error
+  }
 
   if (error || !data) {
     if (error) console.error("[getAdminReservationById] Error:", error)

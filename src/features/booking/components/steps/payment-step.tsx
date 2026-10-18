@@ -4,6 +4,7 @@ import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useBooking } from "../../context/booking-context"
+import { KycBookingGate } from "../kyc-booking-gate"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
@@ -15,9 +16,15 @@ import {
   RiInformationLine,
   RiArrowRightLine,
   RiArrowLeftLine,
-  RiLockLine,
+  RiQrCodeLine,
+  RiGlobalLine,
+  RiCarLine,
+  RiMapPinLine,
+  RiCalendarLine,
+  RiAlertLine,
 } from "@remixicon/react"
 import { cn } from "@/lib/utils"
+import type { PaymentMethodConfig, PaymentMethodId } from "@/features/payment/types"
 
 export function PaymentStep() {
   const router = useRouter()
@@ -25,26 +32,92 @@ export function PaymentStep() {
     draft,
     updateDraft,
     pricing,
+    vehicle,
+    pickupLocationName,
+    returnLocationName,
+    rentalDays,
     completeBooking,
+    quoteError,
   } = useBooking()
 
-  const [paymentChoice, setPaymentChoice] = React.useState<
-    "card" | "e-wallet" | "counter"
-  >(draft.paymentMethod || "card")
+  // KYC Verification state
+  const [isKycVerified, setIsKycVerified] = React.useState<boolean>(false)
+
+  // Payment methods loaded from server configuration
+  const [methods, setMethods] = React.useState<PaymentMethodConfig[]>([
+    {
+      id: "pay_at_pickup",
+      label: "Pay at Pickup",
+      description: "Pay upon key handover at the vehicle branch or valet bay via cash or POS terminal.",
+      type: "manual",
+      enabled: true,
+      badge: "Zero Fee",
+      iconName: "hand-coin",
+    },
+  ])
+  const [gatewayOnline, setGatewayOnline] = React.useState(false)
+
+  const [paymentChoice, setPaymentChoice] = React.useState<PaymentMethodId>(
+    (draft.paymentMethod as PaymentMethodId) || "pay_at_pickup"
+  )
 
   const [agreedTerms, setAgreedTerms] = React.useState(draft.agreedToTerms)
-  const [agreedCancel, setAgreedCancel] = React.useState(
-    draft.agreedToCancellation
-  )
+  const [agreedCancel, setAgreedCancel] = React.useState(draft.agreedToCancellation)
   const [errorNotice, setErrorNotice] = React.useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
+
+  // Fetch available methods from server registry
+  React.useEffect(() => {
+    let active = true
+    fetch("/api/payment-methods")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { success: boolean; gatewayOnline: boolean; methods: PaymentMethodConfig[] } | null) => {
+        if (!active || !data || !data.methods) return
+        setMethods(data.methods)
+        setGatewayOnline(Boolean(data.gatewayOnline))
+
+        // Ensure current choice is still valid
+        const availableIds = data.methods.filter((m) => m.enabled).map((m) => m.id)
+        if (!availableIds.includes(paymentChoice)) {
+          setPaymentChoice(availableIds[0] || "pay_at_pickup")
+        }
+      })
+      .catch((err) => {
+        console.warn("[payment-step] Could not load payment methods:", err)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [paymentChoice])
+
+  const selectedMethod = methods.find((m) => m.id === paymentChoice) || methods[0]
 
   const handleComplete = async () => {
     setErrorNotice(null)
 
-    if (!agreedTerms || !agreedCancel) {
+    if (!isKycVerified) {
       setErrorNotice(
-        "Please acknowledge the rental terms and security deposit conditions before proceeding."
+        "Identity verification is required before confirming a rental. Please complete verification above."
+      )
+      return
+    }
+
+    if (quoteError) {
+      setErrorNotice(quoteError)
+      return
+    }
+
+    if (!agreedTerms) {
+      setErrorNotice(
+        "You must read and agree to Veyra's Terms of Service before finalizing your booking."
+      )
+      return
+    }
+
+    if (!agreedCancel) {
+      setErrorNotice(
+        "Please acknowledge the refundable security deposit conditions before proceeding."
       )
       return
     }
@@ -57,7 +130,11 @@ export function PaymentStep() {
         agreedToCancellation: agreedCancel,
       })
 
-      const ref = await completeBooking()
+      const ref = await completeBooking({
+        paymentMethod: paymentChoice,
+        agreedToTerms: agreedTerms,
+        agreedToCancellation: agreedCancel,
+      })
       if (ref) {
         router.push(`/booking/confirmation?ref=${ref}`)
       }
@@ -70,6 +147,38 @@ export function PaymentStep() {
     }
   }
 
+  // Format date display
+  const formatDateDisplay = (dateStr: string, timeStr: string) => {
+    try {
+      const d = new Date(`${dateStr}T${timeStr}`)
+      return (
+        d.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }) + ` · ${timeStr}`
+      )
+    } catch {
+      return `${dateStr} ${timeStr}`
+    }
+  }
+
+  const renderMethodIcon = (iconName: PaymentMethodConfig["iconName"]) => {
+    switch (iconName) {
+      case "bank-card":
+        return <RiBankCardLine className="size-5 text-primary" />
+      case "wallet":
+        return <RiWallet3Line className="size-5 text-primary" />
+      case "qr-code":
+        return <RiQrCodeLine className="size-5 text-primary" />
+      case "global":
+        return <RiGlobalLine className="size-5 text-primary" />
+      case "hand-coin":
+      default:
+        return <RiHandCoinLine className="size-5 text-primary" />
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Step Title & Context */}
@@ -78,183 +187,167 @@ export function PaymentStep() {
           Step 05 of 06
         </span>
         <h1 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-          Payment Agreement & Handover
+          Verification & Payment Settlement
         </h1>
         <p className="text-xs sm:text-sm text-muted-foreground">
-          Select your intended payment method and review rental policies. Online payment processing is deferred; no immediate charges will be billed today.
+          Confirm your identity clearance, review your itinerary, and select your preferred settlement method.
         </p>
       </div>
 
-      {/* Payment Deferred Notice */}
-      <Alert className="border-amber-500/30 bg-amber-500/5">
-        <RiInformationLine className="size-4 text-amber-600 dark:text-amber-400" />
-        <AlertTitle className="text-xs font-bold text-foreground">
-          Payment Processing Unavailable — Payment Deferred
-        </AlertTitle>
-        <AlertDescription className="text-xs text-muted-foreground">
-          Payment processing is currently unavailable. Your reservation will be recorded and payment can be completed later at vehicle handover or via concierge.
-        </AlertDescription>
-      </Alert>
+      {/* PART 1 & 2: KYC Booking Gate Component */}
+      <KycBookingGate
+        onStatusChange={(verified) => setIsKycVerified(verified)}
+        returnUrl="/booking/payment"
+      />
 
-      {/* Payment Options Selection */}
+      {/* Rental Overview Card */}
+      <div className="rounded-2xl border bg-card/60 p-5 shadow-xs space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-border/60">
+          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            Rental Overview
+          </span>
+          <span className="text-xs font-medium text-muted-foreground">
+            {rentalDays} {rentalDays === 1 ? "Day" : "Days"} Rental
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+          {/* Vehicle */}
+          <div className="flex items-start gap-2.5">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <RiCarLine className="size-4" />
+            </div>
+            <div>
+              <span className="text-[11px] text-muted-foreground block">Vehicle</span>
+              <span className="font-semibold text-foreground">
+                {vehicle.year} {vehicle.make} {vehicle.model}
+              </span>
+            </div>
+          </div>
+
+          {/* Pickup Barangay / Hub */}
+          <div className="flex items-start gap-2.5">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <RiMapPinLine className="size-4" />
+            </div>
+            <div>
+              <span className="text-[11px] text-muted-foreground block">Pickup Barangay / Hub</span>
+              <span className="font-semibold text-foreground truncate block">
+                {pickupLocationName}
+              </span>
+            </div>
+          </div>
+
+          {/* Return Barangay / Hub */}
+          <div className="flex items-start gap-2.5">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <RiMapPinLine className="size-4" />
+            </div>
+            <div>
+              <span className="text-[11px] text-muted-foreground block">Return Barangay / Hub</span>
+              <span className="font-semibold text-foreground truncate block">
+                {returnLocationName}
+              </span>
+            </div>
+          </div>
+
+          {/* Schedule */}
+          <div className="flex items-start gap-2.5">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <RiCalendarLine className="size-4" />
+            </div>
+            <div>
+              <span className="text-[11px] text-muted-foreground block">Dates</span>
+              <span className="font-semibold text-foreground block">
+                {formatDateDisplay(draft.pickupDate, draft.pickupTime)}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Payment Methods Selection */}
       <div className="space-y-4 rounded-2xl border bg-card/60 p-5 sm:p-6 shadow-xs">
         <div className="flex items-center justify-between pb-3 border-b border-border/60">
-          <span className="text-sm font-bold text-foreground">
-            Select Payment Method
-          </span>
+          <div>
+            <h2 className="text-sm font-bold text-foreground">Select Payment Method</h2>
+            <p className="text-xs text-muted-foreground">
+              {gatewayOnline
+                ? "Choose an instant digital checkout channel or settle in-person upon pickup."
+                : "Deferred settlement is enabled. Pay at vehicle handover with zero processing fees."}
+            </p>
+          </div>
           <span className="text-xs font-mono font-bold text-primary">
             Total Due: {pricing.currency}
             {pricing.totalRentalPrice.toLocaleString()}
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {/* Card Option */}
-          <div
-            onClick={() => setPaymentChoice("card")}
-            className={cn(
-              "flex flex-col gap-2 rounded-xl border p-4 cursor-pointer transition-all",
-              paymentChoice === "card"
-                ? "border-primary bg-primary/5 shadow-xs ring-1 ring-primary/30"
-                : "border-border bg-card hover:border-primary/40"
-            )}
-          >
-            <div className="flex items-center justify-between">
-              <RiBankCardLine className="size-5 text-primary" />
-              <div
-                className={cn(
-                  "size-4 rounded-full border flex items-center justify-center",
-                  paymentChoice === "card"
-                    ? "border-primary bg-primary"
-                    : "border-muted-foreground"
-                )}
-              >
-                {paymentChoice === "card" && (
-                  <div className="size-1.5 rounded-full bg-white" />
-                )}
-              </div>
-            </div>
-            <div>
-              <span className="text-xs font-bold text-foreground block">
-                Credit / Debit Card
-              </span>
-              <span className="text-[11px] text-muted-foreground">
-                Visa, Mastercard, JCB
-              </span>
-            </div>
-          </div>
-
-          {/* E-Wallet Option */}
-          <div
-            onClick={() => setPaymentChoice("e-wallet")}
-            className={cn(
-              "flex flex-col gap-2 rounded-xl border p-4 cursor-pointer transition-all",
-              paymentChoice === "e-wallet"
-                ? "border-primary bg-primary/5 shadow-xs ring-1 ring-primary/30"
-                : "border-border bg-card hover:border-primary/40"
-            )}
-          >
-            <div className="flex items-center justify-between">
-              <RiWallet3Line className="size-5 text-primary" />
-              <div
-                className={cn(
-                  "size-4 rounded-full border flex items-center justify-center",
-                  paymentChoice === "e-wallet"
-                    ? "border-primary bg-primary"
-                    : "border-muted-foreground"
-                )}
-              >
-                {paymentChoice === "e-wallet" && (
-                  <div className="size-1.5 rounded-full bg-white" />
-                )}
-              </div>
-            </div>
-            <div>
-              <span className="text-xs font-bold text-foreground block">
-                Digital Wallet
-              </span>
-              <span className="text-[11px] text-muted-foreground">
-                GCash, Maya, QR Ph
-              </span>
-            </div>
-          </div>
-
-          {/* Pay at Handover */}
-          <div
-            onClick={() => setPaymentChoice("counter")}
-            className={cn(
-              "flex flex-col gap-2 rounded-xl border p-4 cursor-pointer transition-all",
-              paymentChoice === "counter"
-                ? "border-primary bg-primary/5 shadow-xs ring-1 ring-primary/30"
-                : "border-border bg-card hover:border-primary/40"
-            )}
-          >
-            <div className="flex items-center justify-between">
-              <RiHandCoinLine className="size-5 text-primary" />
-              <div
-                className={cn(
-                  "size-4 rounded-full border flex items-center justify-center",
-                  paymentChoice === "counter"
-                    ? "border-primary bg-primary"
-                    : "border-muted-foreground"
-                )}
-              >
-                {paymentChoice === "counter" && (
-                  <div className="size-1.5 rounded-full bg-white" />
-                )}
-              </div>
-            </div>
-            <div>
-              <span className="text-xs font-bold text-foreground block">
-                Pay at Handover
-              </span>
-              <span className="text-[11px] text-muted-foreground">
-                Valet Bay POS Terminal
-              </span>
-            </div>
-          </div>
+        {/* Available Configured Payment Methods */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {methods
+            .filter((m) => m.enabled)
+            .map((method) => {
+              const isSelected = paymentChoice === method.id
+              return (
+                <div
+                  key={method.id}
+                  onClick={() => setPaymentChoice(method.id)}
+                  className={cn(
+                    "flex flex-col justify-between gap-3 rounded-xl border p-4 cursor-pointer transition-all",
+                    isSelected
+                      ? "border-primary bg-primary/5 shadow-xs ring-1 ring-primary/30"
+                      : "border-border bg-card hover:border-primary/40"
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {renderMethodIcon(method.iconName)}
+                      {method.badge && (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                          {method.badge}
+                        </span>
+                      )}
+                    </div>
+                    <div
+                      className={cn(
+                        "size-4 rounded-full border flex items-center justify-center",
+                        isSelected ? "border-primary bg-primary" : "border-muted-foreground"
+                      )}
+                    >
+                      {isSelected && <div className="size-1.5 rounded-full bg-white" />}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-foreground block">
+                      {method.label}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground line-clamp-2">
+                      {method.description}
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
         </div>
 
-        {/* Card Simulator Details (Decorative Prototype) */}
-        {paymentChoice === "card" && (
-          <div className="mt-4 rounded-xl border border-dashed border-border bg-muted/20 p-4 space-y-3 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground font-medium">
-                Prototype Card Simulator
-              </span>
-              <span className="flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
-                <RiLockLine className="size-3" />
-                <span>Encrypted Simulation</span>
-              </span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="sm:col-span-2 space-y-1">
-                <span className="text-[10px] text-muted-foreground block uppercase">
-                  Cardholder Name
-                </span>
-                <div className="h-9 rounded-lg border border-input bg-card px-3 flex items-center text-xs font-mono text-muted-foreground">
-                  {draft.driver.firstName
-                    ? `${draft.driver.firstName} ${draft.driver.lastName}`
-                    : "MARIA SANTOS"}
-                </div>
-              </div>
-              <div className="space-y-1">
-                <span className="text-[10px] text-muted-foreground block uppercase">
-                  Card Number
-                </span>
-                <div className="h-9 rounded-lg border border-input bg-card px-3 flex items-center text-xs font-mono text-muted-foreground">
-                  •••• •••• •••• 4242
-                </div>
-              </div>
-            </div>
-          </div>
+        {!gatewayOnline && (
+          <Alert className="border-border bg-muted/30">
+            <RiInformationLine className="size-4 text-muted-foreground" />
+            <AlertTitle className="text-xs font-bold text-foreground">
+              Pay at Pickup Settlement
+            </AlertTitle>
+            <AlertDescription className="text-xs text-muted-foreground">
+              Online credit card and e-wallet checkout channels are currently deactivated in this environment. Your reservation will be confirmed immediately with payment status set to pending. Settle in person via cash or card POS terminal at vehicle handover.
+            </AlertDescription>
+          </Alert>
         )}
       </div>
 
-      {/* Terms & Consent Acknowledgements */}
+      {/* Terms & Policies Checkboxes */}
       <div className="space-y-3 rounded-2xl border bg-card/60 p-5 shadow-xs">
         <span className="text-sm font-bold text-foreground block">
-          Policies & Agreements
+          Rental Policies & Authorizations
         </span>
 
         <label className="flex items-start gap-3 cursor-pointer text-xs text-muted-foreground hover:text-foreground select-none">
@@ -262,9 +355,20 @@ export function PaymentStep() {
             checked={agreedTerms}
             onCheckedChange={(checked) => setAgreedTerms(!!checked)}
             className="mt-0.5"
+            id="terms-acceptance-checkbox"
           />
-          <span>
-            I acknowledge that I have reviewed the Veyra Rental Terms and Privacy Guidelines, and confirm that the primary driver meets the minimum age requirement of 21 years old.
+          <span className="leading-relaxed">
+            I have read and agree to Veyra&apos;s{" "}
+            <Link
+              href="/terms"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary font-medium underline underline-offset-2 hover:text-primary/80"
+              onClick={(e) => e.stopPropagation()}
+            >
+              Terms of Service
+            </Link>
+            .
           </span>
         </label>
 
@@ -276,15 +380,53 @@ export function PaymentStep() {
           />
           <span>
             I understand that a refundable security deposit of ₱
-            {pricing.refundableSecurityDeposit.toLocaleString()} will be pre-authorized upon key handover and released after vehicle inspection.
+            {pricing.refundableSecurityDeposit.toLocaleString()} will be pre-authorized upon vehicle key handover and released following post-rental inspection.
           </span>
         </label>
 
         {errorNotice && (
-          <p className="text-xs text-destructive font-medium pt-1">
-            {errorNotice}
-          </p>
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive flex items-center gap-2">
+            <RiAlertLine className="size-4 shrink-0" />
+            <span>{errorNotice}</span>
+          </div>
         )}
+      </div>
+
+      {/* PART 6: Clear Final Pre-Confirmation Summary */}
+      <div className="rounded-2xl border bg-card/60 p-5 shadow-xs space-y-4">
+        <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
+          Final Rental Summary
+        </span>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+          <div className="rounded-xl border bg-background/50 p-3.5 space-y-1">
+            <span className="text-muted-foreground block text-[11px]">Rental Total</span>
+            <span className="font-heading text-lg font-bold text-primary">
+              ₱{pricing.totalRentalPrice.toLocaleString()}
+            </span>
+          </div>
+
+          <div className="rounded-xl border bg-background/50 p-3.5 space-y-1">
+            <span className="text-muted-foreground block text-[11px]">Payment Method</span>
+            <span className="font-semibold text-foreground text-sm flex items-center gap-1.5">
+              {renderMethodIcon(selectedMethod?.iconName || "hand-coin")}
+              <span>{selectedMethod?.label || "Pay at Pickup"}</span>
+            </span>
+          </div>
+
+          <div className="rounded-xl border bg-background/50 p-3.5 space-y-1">
+            <span className="text-muted-foreground block text-[11px]">Verification Clearance</span>
+            <span
+              className={cn(
+                "font-semibold text-sm flex items-center gap-1.5",
+                isKycVerified ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
+              )}
+            >
+              <RiShieldCheckLine className="size-4 shrink-0" />
+              <span>{isKycVerified ? "KYC Verified ✅" : "Verification Required"}</span>
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Navigation Controls */}
@@ -296,20 +438,34 @@ export function PaymentStep() {
           </Button>
         </Link>
 
-        <Button
-          size="lg"
-          onClick={handleComplete}
-          disabled={isSubmitting}
-          className="gap-2 font-semibold shadow-md"
-        >
-          <RiShieldCheckLine className="size-4" data-icon="inline-start" />
-          <span>
-            {isSubmitting
-              ? "Recording Reservation..."
-              : `Confirm Reservation • Pay at Handover (${pricing.currency}${pricing.totalRentalPrice.toLocaleString()})`}
-          </span>
-          <RiArrowRightLine className="size-4" data-icon="inline-end" />
-        </Button>
+        {isKycVerified ? (
+          <Button
+            size="lg"
+            onClick={handleComplete}
+            disabled={isSubmitting || Boolean(quoteError)}
+            className="gap-2 font-semibold shadow-md"
+          >
+            <RiShieldCheckLine className="size-4" data-icon="inline-start" />
+            <span>
+              {isSubmitting
+                ? "Processing..."
+                : selectedMethod?.type === "manual"
+                ? `Confirm Reservation • Pay at Handover (₱${pricing.totalRentalPrice.toLocaleString()})`
+                : `Pay Securely with ${selectedMethod?.label || "Online Gateway"} (₱${pricing.totalRentalPrice.toLocaleString()})`}
+            </span>
+            <RiArrowRightLine className="size-4" data-icon="inline-end" />
+          </Button>
+        ) : (
+          <Button
+            size="lg"
+            disabled
+            variant="outline"
+            className="gap-2 font-semibold opacity-70 cursor-not-allowed"
+          >
+            <RiAlertLine className="size-4 text-amber-500" data-icon="inline-start" />
+            <span>Complete Identity Clearance Above to Continue</span>
+          </Button>
+        )}
       </div>
     </div>
   )

@@ -6,13 +6,10 @@ import { PageContainer } from "@/components/layout"
 import { StatusBadge } from "@/components/common/status-badge"
 import { Button } from "@/components/ui/button"
 import { getLiveLocations } from "@/features/search/server/locations-repository"
+import { LocationsExplorer } from "@/features/locations/components/locations-explorer"
 import {
-  RiMapPin2Line,
-  RiTimeLine,
-  RiFlightTakeoffLine,
   RiBuilding4Line,
   RiPhoneLine,
-  RiArrowRightLine,
   RiCarLine,
   RiShieldCheckLine,
   RiCustomerService2Line,
@@ -98,36 +95,8 @@ export default async function LocationsPage() {
             })}
           </div>
 
-          {/* Active Operating Locations */}
-          <section aria-labelledby="operations-hub-heading" className="space-y-5">
-            <div className="flex items-center gap-3">
-              <h2
-                id="operations-hub-heading"
-                className="font-heading text-xl font-bold tracking-tight text-foreground flex items-center gap-2"
-              >
-                <RiBuilding4Line className="size-5 text-primary" />
-                Butuan City Barangay Hubs ({locations.length})
-              </h2>
-              <StatusBadge
-                status="success"
-                label="Active Hubs"
-                size="sm"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-              {locations.map((loc) => (
-                <LocationCard key={loc.id} loc={loc} />
-              ))}
-              {locations.length === 0 && (
-                <div className="p-8 text-center border rounded-xl bg-card">
-                  <p className="text-sm text-muted-foreground">
-                    Butuan City Operations Hub active. Refresh or contact concierge.
-                  </p>
-                </div>
-              )}
-            </div>
-          </section>
+          {/* Interactive Butuan City Map & Operating Stations */}
+          <LocationsExplorer locations={locations} />
 
           {/* CTA Banner */}
           <div className="rounded-2xl border bg-card p-8 sm:p-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
@@ -157,77 +126,5 @@ export default async function LocationsPage() {
         </PageContainer>
       </div>
     </CustomerShell>
-  )
-}
-
-import { LocationHub } from "@/types"
-
-// ─── Location Card ─────────────────────────────────────────────────────────────
-
-interface LocationCardProps {
-  loc: LocationHub
-}
-
-function LocationCard({ loc }: LocationCardProps) {
-  const isAirport = loc.type.includes("Airport")
-  const Icon = isAirport ? RiFlightTakeoffLine : RiBuilding4Line
-
-  return (
-    <article className="flex flex-col justify-between rounded-xl border bg-card hover:shadow-sm transition-shadow gap-5 overflow-hidden">
-      {/* Card Header */}
-      <div className="p-5 space-y-3">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2.5">
-            <div className="flex size-9 items-center justify-center rounded-lg bg-muted text-foreground shrink-0">
-              <Icon className="size-4" />
-            </div>
-            <div>
-              <p className="text-[11px] font-medium text-primary uppercase tracking-wider">
-                {loc.barangay ? `Barangay ${loc.barangay}` : loc.type}
-              </p>
-              <p className="text-sm font-semibold text-foreground leading-tight">
-                {loc.city}, {loc.province || "Agusan del Norte"}
-              </p>
-            </div>
-          </div>
-          <StatusBadge
-            status={loc.pickupAvailable ? "success" : "neutral"}
-            label={loc.pickupAvailable ? "Active Hub" : "Closed"}
-            size="sm"
-          />
-        </div>
-
-        <div>
-          <h3 className="font-heading text-base font-semibold text-foreground leading-snug">
-            {loc.name}
-          </h3>
-          <p className="mt-1.5 text-xs text-muted-foreground flex items-start gap-1.5">
-            <RiMapPin2Line className="size-3.5 text-primary shrink-0 mt-0.5" />
-            <span>{loc.address}</span>
-          </p>
-        </div>
-
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <RiTimeLine className="size-3.5 shrink-0" />
-          <span>{loc.operatingHours}</span>
-        </div>
-      </div>
-
-      {/* Card Footer */}
-      <div className="px-5 pb-5 pt-0">
-        <Link href={`/search?pickup=${loc.id}`} className="block">
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full gap-1.5"
-            aria-label={`Find vehicles in Barangay ${loc.barangay || loc.name}, Butuan City`}
-          >
-            <RiCarLine className="size-3.5" data-icon="inline-start" />
-            <span>View Available Vehicles</span>
-            <RiArrowRightLine className="size-3.5" data-icon="inline-end" />
-          </Button>
-        </Link>
-      </div>
-    </article>
   )
 }

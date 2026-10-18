@@ -31,6 +31,9 @@ export interface CustomerReservation {
   pickupLocationName: string
   pickupBarangay?: string
   pickupAddress: string
+  pickupStreetAddress?: string
+  pickupLandmark?: string
+  pickupContactPhone?: string
   pickupDate: string
   pickupTime: string
   returnLocationId: string
@@ -57,6 +60,15 @@ export interface CustomerReservation {
   notes?: string
 }
 
+export type KycVerificationStatus =
+  | "not_submitted"
+  | "pending_review"
+  | "pending"
+  | "unverified"
+  | "verified"
+  | "rejected"
+  | "requires_resubmission"
+
 export interface CustomerProfile {
   id: string
   firstName: string
@@ -69,6 +81,21 @@ export interface CustomerProfile {
   preferredHubId: string
   preferredHubName: string
   totalRentals: number
+  verificationStatus?: KycVerificationStatus
+  rejectionReason?: string
+}
+
+export interface CustomerKycSummary {
+  status: KycVerificationStatus
+  statusLabel: string
+  submittedAt?: string
+  reviewedAt?: string
+  reviewerName?: string
+  rejectionReason?: string
+  hasDriverLicense: boolean
+  hasGovernmentId: boolean
+  requiredDocumentsUploaded: boolean
+  documents: CustomerDocument[]
 }
 
 export interface DriverRentalProfile {
@@ -93,7 +120,7 @@ export type DocumentStatus =
 export interface CustomerDocument {
   id: string
   title: string
-  category: "driver_license" | "government_id" | "address_proof"
+  category: "driver_license" | "government_id" | "address_proof" | "passport"
   description: string
   status: DocumentStatus
   statusLabel: string

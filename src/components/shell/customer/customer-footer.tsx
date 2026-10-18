@@ -41,7 +41,7 @@ const footerSections: FooterSection[] = [
       { label: "24/7 Roadside Assist", href: "/support/roadside" },
       { label: "Reservation FAQ", href: "/support/faq" },
       { label: "Cancellation Policy", href: "/support/cancellation" },
-      { label: "Rental Terms & Deposit", href: "/support/terms" },
+      { label: "Rental Terms & Deposit", href: "/terms" },
       { label: "Customer Concierge", href: "/support/contact" },
     ],
   },
@@ -52,7 +52,7 @@ const footerSections: FooterSection[] = [
       { label: "Clean Fleet Commitment", href: "/company/sustainability" },
       { label: "Operating Hub", href: "/locations" },
       { label: "Privacy Policy", href: "/legal/privacy" },
-      { label: "Terms of Service", href: "/legal/terms" },
+      { label: "Terms of Service", href: "/terms" },
     ],
   },
 ]
@@ -113,7 +113,7 @@ export function CustomerFooter() {
             <Link href="/legal/privacy" className="hover:text-foreground transition-colors">
               Privacy
             </Link>
-            <Link href="/legal/terms" className="hover:text-foreground transition-colors">
+            <Link href="/terms" className="hover:text-foreground transition-colors">
               Terms
             </Link>
             <Link href="/legal/security" className="hover:text-foreground transition-colors">

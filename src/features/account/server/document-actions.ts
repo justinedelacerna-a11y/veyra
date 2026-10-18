@@ -6,6 +6,7 @@ import { createClient as createServiceClient } from "@supabase/supabase-js"
 import { createClient } from "@/lib/supabase/server"
 import { checkRateLimit, RATE_LIMITS } from "@/lib/rate-limit"
 import { logger, safeErrorMessage } from "@/lib/logger"
+import { recordAuditEvent } from "@/features/admin/server/audit-service"
 
 const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"]
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 // 10 MB
@@ -158,8 +159,33 @@ export async function uploadCustomerDocumentAction(
       }
     }
 
-    // 8. Revalidate account documents page
+    // 8. Update customer verification status to pending if not verified
+    await adminSupabase
+      .from("customers")
+      .update({
+        verification_status: "pending",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", customer.id)
+      .neq("verification_status", "verified")
+
+    // 9. Record KYC submission audit event
+    await recordAuditEvent({
+      actorId: user.id,
+      actorRole: "customer",
+      action: "kyc.submitted",
+      resourceType: "customer_document",
+      resourceId: docRecord.id,
+      result: "success",
+      details: `Document uploaded: ${file.name.slice(0, 50)} (${documentType})`,
+      afterState: { type: documentType, status: "pending_review" },
+    })
+
+    // 10. Revalidate account documents & booking flow
     revalidatePath("/account/documents")
+    revalidatePath("/account")
+    revalidatePath("/booking/review")
+    revalidatePath("/booking/payment")
 
     log.info("document_uploaded", { documentId: docRecord.id, documentType })
     return {

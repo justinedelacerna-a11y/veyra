@@ -1,11 +1,13 @@
 import * as React from "react"
 import { Metadata } from "next"
-import { getCustomerDocuments } from "@/features/account/server/customer-repository"
+import { getCustomerDocuments, getCustomerKycStatus } from "@/features/account/server/customer-repository"
 import { AccountHeader } from "@/features/account/components/account-header"
 import { DocumentUploadDialog } from "@/features/account/components/document-upload-dialog"
 import { StatusBadge, StatusType } from "@/components/common/status-badge"
 import { DocumentStatus } from "@/features/account/types"
 import { ValidDocumentType } from "@/features/account/server/document-actions"
+import { Button } from "@/components/ui/button"
+import Link from "next/link"
 import {
   RiFileList3Line,
   RiShieldCheckLine,
@@ -14,10 +16,11 @@ import {
   RiCloseCircleLine,
   RiAlertLine,
   RiCalendarLine,
+  RiArrowLeftLine,
 } from "@remixicon/react"
 
 export const metadata: Metadata = {
-  title: "Identity Documents — Veyra Account",
+  title: "Identity Documents & KYC — Veyra Account",
   description: "Track the status of identity documents submitted for rental verification and security clearance.",
 }
 
@@ -60,8 +63,16 @@ const STANDARD_DOCUMENT_SLOTS: StandardDocConfig[] = [
   },
 ]
 
-export default async function DocumentsPage() {
-  const liveDocuments = await getCustomerDocuments()
+export default async function DocumentsPage(props: {
+  searchParams?: Promise<{ returnUrl?: string }>
+}) {
+  const searchParams = props.searchParams ? await props.searchParams : {}
+  const returnUrl = searchParams?.returnUrl
+
+  const [liveDocuments, kyc] = await Promise.all([
+    getCustomerDocuments(),
+    getCustomerKycStatus(),
+  ])
 
   // Match live documents with standard required slots or show them
   const documentCards = STANDARD_DOCUMENT_SLOTS.map((slot) => {
@@ -101,17 +112,114 @@ export default async function DocumentsPage() {
 
   return (
     <div className="space-y-8">
+      {/* Return to Booking Banner if redirected from checkout */}
+      {returnUrl && (
+        <div className="rounded-2xl border border-primary/30 bg-primary/10 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="space-y-0.5">
+            <span className="text-xs font-semibold uppercase text-primary tracking-wider">
+              Booking Verification Step
+            </span>
+            <p className="text-sm font-medium text-foreground">
+              Please submit your required driver&apos;s license below to complete your rental.
+            </p>
+          </div>
+          <Link href={returnUrl}>
+            <Button size="sm" variant="outline" className="gap-1.5 shrink-0">
+              <RiArrowLeftLine className="size-3.5" />
+              <span>Return to Booking</span>
+            </Button>
+          </Link>
+        </div>
+      )}
+
       <AccountHeader
-        title="Identity Documents"
-        description="Submit and track verification documents required for seamless vehicle collection and handover clearance."
+        title="Identity & Driver KYC Verification"
+        description="Submit and track verification documents required under Philippine LTO guidelines for rental clearance and key release."
       />
 
-      {/* Security Notice */}
-      <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-xs text-muted-foreground flex gap-2.5 items-start">
+      {/* Primary Customer KYC Status Overview Card */}
+      <div className="rounded-2xl border bg-card p-6 shadow-xs space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4">
+          <div className="space-y-1">
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Overall Account Verification Status
+            </span>
+            <h2 className="font-heading text-lg font-bold text-foreground flex items-center gap-2">
+              {kyc.status === "verified" ? (
+                <>
+                  <RiShieldCheckLine className="size-5 text-emerald-600 dark:text-emerald-400" />
+                  <span>KYC Verified • Cleared for Rentals</span>
+                </>
+              ) : kyc.status === "pending_review" ? (
+                <>
+                  <RiTimeLine className="size-5 text-amber-600 dark:text-amber-400" />
+                  <span>Verification Pending Review</span>
+                </>
+              ) : kyc.status === "rejected" || kyc.status === "requires_resubmission" ? (
+                <>
+                  <RiCloseCircleLine className="size-5 text-destructive" />
+                  <span>Requires Resubmission</span>
+                </>
+              ) : (
+                <>
+                  <RiAlertLine className="size-5 text-muted-foreground" />
+                  <span>Verification Not Submitted</span>
+                </>
+              )}
+            </h2>
+          </div>
+
+          <StatusBadge
+            status={
+              kyc.status === "verified"
+                ? "success"
+                : kyc.status === "pending_review"
+                ? "pending"
+                : kyc.status === "rejected" || kyc.status === "requires_resubmission"
+                ? "error"
+                : "neutral"
+            }
+            label={kyc.statusLabel}
+            size="md"
+            showIcon
+          />
+        </div>
+
+        {/* Detailed Explanation / Requirements */}
+        <div className="text-xs text-muted-foreground space-y-3 leading-relaxed">
+          {kyc.status === "verified" && (
+            <p className="text-emerald-700 dark:text-emerald-400 font-medium">
+              ✅ Your driver&apos;s license and identity credentials have been verified by Veyra. You are eligible for contactless key handover at all Butuan City barangay pickup hubs.
+            </p>
+          )}
+
+          {kyc.status === "pending_review" && (
+            <p className="text-amber-700 dark:text-amber-400 font-medium">
+              ⏳ Documents received. Our local operations team is reviewing your credentials. Average turnaround is under 15 minutes.
+            </p>
+          )}
+
+          {(kyc.status === "rejected" || kyc.status === "requires_resubmission") && (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-destructive space-y-1">
+              <span className="font-semibold block">Rejection Reason:</span>
+              <p>{kyc.rejectionReason || "Uploaded document was unreadable or failed verification. Please upload a clear replacement photocard."}</p>
+            </div>
+          )}
+
+          {kyc.status === "not_submitted" && (
+            <p>
+              Before driving any Veyra vehicle, Philippine LTO regulations require an official physical photocard driver&apos;s license and a primary government ID on file. Upload your documents below to complete verification.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Security & Privacy Notice */}
+      <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-xs text-muted-foreground flex gap-2.5 items-start">
         <RiShieldCheckLine className="size-4 shrink-0 mt-0.5 text-primary" />
         <p className="leading-relaxed">
-          <strong className="text-foreground font-medium">Bank-Grade Privacy:</strong>{" "}
-          All submitted documents are transferred via TLS 1.3, encrypted at rest in isolated private storage, and only accessible by credentialed Veyra verification specialists. Document URLs are never made public.
+          <strong className="text-foreground font-medium">Bank-Grade Privacy & Protection:</strong>{" "}
+          All submitted documents are transferred via TLS 1.3, encrypted at rest in isolated private storage, and only accessible by credentialed Veyra verification specialists via temporary signed URLs. Document files and ID numbers are never exposed publicly.
         </p>
       </div>
 

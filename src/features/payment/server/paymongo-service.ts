@@ -27,6 +27,7 @@ export type CheckoutSessionResult =
         | "unauthorized"
         | "customer_not_found"
         | "reservation_not_found"
+        | "kyc_unverified"
         | "quote_expired"
         | "hold_expired"
         | "invalid_state"
@@ -142,7 +143,7 @@ export async function createCheckoutSession(
 
   const { data: customer } = await supabase
     .from("customers")
-    .select("id, first_name, last_name")
+    .select("id, first_name, last_name, verification_status")
     .eq("user_id", dbUser.id)
     .single()
 
@@ -151,6 +152,29 @@ export async function createCheckoutSession(
       success: false,
       error: "customer_not_found",
       message: "Customer profile not found.",
+    }
+  }
+
+  // 1b. Server-Side KYC Gate: Verify customer before allowing payment checkout
+  const { data: approvedDl } = await supabase
+    .from("customer_documents")
+    .select("id")
+    .eq("customer_id", customer.id)
+    .eq("type", "driver_license")
+    .eq("status", "approved")
+    .maybeSingle()
+
+  const isKycVerified = customer.verification_status === "verified" || Boolean(approvedDl)
+  if (!isKycVerified) {
+    return {
+      success: false,
+      error: "kyc_unverified",
+      message:
+        customer.verification_status === "pending"
+          ? "Your identity verification is currently under review by our operations team. You cannot proceed to payment until approved."
+          : customer.verification_status === "rejected"
+          ? "Your identity verification was rejected. Please review feedback and resubmit documents in your account."
+          : "Driver verification is required before checkout. Please complete document verification in your account.",
     }
   }
 

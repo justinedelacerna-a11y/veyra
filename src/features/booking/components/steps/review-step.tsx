@@ -17,6 +17,7 @@ import {
   RiArrowRightLine,
   RiArrowLeftLine,
   RiCheckLine,
+  RiAlertLine,
 } from "@remixicon/react"
 
 export function ReviewStep() {
@@ -29,7 +30,19 @@ export function ReviewStep() {
     draft,
     pricing,
     availableExtras,
+    quoteError,
   } = useBooking()
+
+  const [kycStatus, setKycStatus] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    fetch("/api/account/kyc")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.status) setKycStatus(data.status)
+      })
+      .catch(() => {})
+  }, [])
 
   // Format dates for display
   const formatDateDisplay = (dateStr: string, timeStr: string) => {
@@ -138,10 +151,31 @@ export function ReviewStep() {
                 <RiMapPinLine className="size-3.5 text-primary" />
                 <span>Pickup Station</span>
               </span>
-              <p className="text-foreground font-medium">{pickupLocationName}</p>
+              <p className="text-foreground font-medium">
+                {draft.pickupBarangay && !pickupLocationName.toLowerCase().includes(draft.pickupBarangay.toLowerCase())
+                  ? `Barangay ${draft.pickupBarangay} (via ${pickupLocationName})`
+                  : pickupLocationName}
+              </p>
               <p className="text-muted-foreground">
                 {formatDateDisplay(draft.pickupDate, draft.pickupTime)}
               </p>
+              {draft.pickupStreetAddress && (
+                <div className="pt-1.5 mt-1 border-t border-border/40 text-[11px] space-y-0.5">
+                  <div className="text-foreground font-medium">
+                    Address: {draft.pickupStreetAddress}
+                  </div>
+                  {draft.pickupLandmark && (
+                    <div className="text-muted-foreground">
+                      Landmark: {draft.pickupLandmark}
+                    </div>
+                  )}
+                  {draft.pickupContactPhone && (
+                    <div className="text-muted-foreground">
+                      Contact: {draft.pickupContactPhone}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="rounded-xl bg-muted/40 p-3.5 border border-border/50 space-y-1">
@@ -213,6 +247,15 @@ export function ReviewStep() {
               <h2 className="text-sm font-bold text-foreground">
                 Primary Driver Profile
               </h2>
+              {kycStatus === "verified" ? (
+                <StatusBadge status="success" label="KYC Verified" size="sm" />
+              ) : kycStatus === "pending_review" ? (
+                <StatusBadge status="pending" label="Review Pending" size="sm" />
+              ) : kycStatus === "rejected" ? (
+                <StatusBadge status="error" label="KYC Rejected" size="sm" />
+              ) : (
+                <StatusBadge status="warning" label="KYC Required" size="sm" />
+              )}
             </div>
             <Link href="/booking/driver">
               <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary">
@@ -277,10 +320,24 @@ export function ReviewStep() {
             Free cancellation with zero penalty up to 24 hours prior to handover. Digital check-in pre-qualifies your credentials for instant key release at airport valet bays.
           </p>
         </div>
+
+        {/* Rental Duration Policy Error */}
+        {quoteError && (
+          <div
+            role="alert"
+            className="rounded-xl border border-destructive/30 bg-destructive/10 p-3.5 text-xs text-destructive flex items-center gap-2.5"
+          >
+            <RiAlertLine className="size-4 shrink-0 text-destructive" />
+            <div className="space-y-0.5">
+              <span className="font-semibold block">Rental Duration Limit</span>
+              <span>{quoteError}</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Navigation Controls */}
-      <div className="flex items-center justify-between pt-4 border-t border-border/60">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-border/60">
         <Link href="/booking/driver">
           <Button variant="ghost" size="sm" className="gap-1.5">
             <RiArrowLeftLine className="size-4" data-icon="inline-start" />
@@ -288,14 +345,22 @@ export function ReviewStep() {
           </Button>
         </Link>
 
-        <Button
-          size="lg"
-          onClick={() => router.push("/booking/payment")}
-          className="gap-2 font-semibold shadow-md"
-        >
-          <span>Continue to Payment</span>
-          <RiArrowRightLine className="size-4" data-icon="inline-end" />
-        </Button>
+        <div className="flex flex-col sm:items-end gap-1 w-full sm:w-auto">
+          {quoteError && (
+            <span className="text-[11px] text-destructive font-medium text-center sm:text-right">
+              Adjust dates to meet rental duration limits
+            </span>
+          )}
+          <Button
+            size="lg"
+            onClick={() => router.push("/booking/payment")}
+            disabled={Boolean(quoteError)}
+            className="gap-2 font-semibold shadow-md w-full sm:w-auto"
+          >
+            <span>Continue to Payment</span>
+            <RiArrowRightLine className="size-4" data-icon="inline-end" />
+          </Button>
+        </div>
       </div>
     </div>
   )

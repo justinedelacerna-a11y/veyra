@@ -61,6 +61,7 @@ export function CustomerMobileNav() {
       <SheetContent side="left" className="w-[300px] sm:w-[360px] p-0 flex flex-col justify-between">
         <div className="flex flex-col">
           <SheetHeader className="p-6 pb-4 border-b text-left">
+            <SheetTitle className="sr-only">Veyra Navigation Menu</SheetTitle>
             <div className="flex items-center gap-2.5">
               <VeyraLogo iconSize="h-9" className="text-xl" />
             </div>

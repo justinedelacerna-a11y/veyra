@@ -1,7 +1,7 @@
 import "server-only"
 import { auth, currentUser } from "@clerk/nextjs/server"
 import { redirect } from "next/navigation"
-import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
 import type { StaffRole } from "@/features/admin/types"
 
 export interface StaffAuthContext {
@@ -153,16 +153,15 @@ export async function getAdminStaffStatus(): Promise<StaffAuthStatus> {
     }
   }
 
-  // 3. Standard Staff RLS verification
-  const supabase = createClient()
+  // 3. Standard Staff verification strictly bound to authenticated Clerk userId
+  const serviceClient = createServiceClient()
 
-  // Fetch user's own row from public.users
-  const { data: userRows } = await supabase
+  const { data: user } = await serviceClient
     .from("users")
     .select("id, clerk_id, email, user_type, status")
-    .limit(1)
+    .eq("clerk_id", userId)
+    .maybeSingle()
 
-  const user = userRows?.[0]
   if (!user || user.status !== "active") {
     return { state: "forbidden", email: clerkEmail || "unknown", userType: "unregistered" }
   }
@@ -171,14 +170,14 @@ export async function getAdminStaffStatus(): Promise<StaffAuthStatus> {
     return { state: "forbidden", email: user.email, userType: user.user_type }
   }
 
-  // Fetch staff profile
-  const { data: staffRows } = await supabase
+  // Fetch staff profile strictly bound to this internal user id
+  const { data: staff } = await serviceClient
     .from("staff_users")
     .select("id, user_id, role, branch_id, first_name, last_name, employee_id, status")
+    .eq("user_id", user.id)
     .eq("status", "active")
-    .limit(1)
+    .maybeSingle()
 
-  const staff = staffRows?.[0]
   if (!staff) {
     return { state: "forbidden", email: user.email, userType: "staff_unassigned" }
   }

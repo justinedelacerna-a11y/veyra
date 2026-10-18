@@ -16,9 +16,12 @@ import {
   RiCheckDoubleLine,
   RiArrowRightLine,
   RiCarLine,
-  RiMapPinLine,
+  RiCalendarLine,
+  RiTimeLine,
+  RiAlertLine,
 } from "@remixicon/react"
 import { VehicleImage } from "@/components/ui/vehicle-image"
+import { PickupAddressPicker } from "../pickup-address-picker"
 
 export function VehicleStep() {
   const router = useRouter()
@@ -26,9 +29,9 @@ export function VehicleStep() {
     vehicle,
     draft,
     updateDraft,
-    availableLocations,
-    pickupHub,
-    returnHub,
+    rentalDays,
+    quoteError,
+    quoteLoading,
   } = useBooking()
 
   if (!vehicle.available || vehicle.id === "unselected") {
@@ -197,82 +200,106 @@ export function VehicleStep() {
           </div>
         </div>
 
-        {/* Localized Barangay Handover Stationing */}
+        {/* Rental Dates & Calculated Duration */}
         <div className="space-y-3 pt-3 border-t border-border/60">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <RiMapPinLine className="size-3.5 text-primary" />
-              <span>Butuan City Barangay Handover Station</span>
+              <RiCalendarLine className="size-3.5 text-primary" />
+              <span>Rental Schedule & Duration</span>
             </h3>
-            <span className="text-[11px] text-muted-foreground">
-              Veyra operates exclusively in Butuan City
+            <span className="text-xs font-bold text-primary px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/20 self-start sm:self-auto">
+              Duration: {rentalDays} {rentalDays === 1 ? "Day" : "Days"}
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div className="rounded-xl border bg-muted/30 p-3.5 space-y-1.5">
-              <label htmlFor="booking-pickup-loc" className="text-xs font-semibold text-foreground flex items-center gap-1">
-                <RiMapPinLine className="size-3 text-primary" />
-                <span>Pickup Location</span>
+              <label htmlFor="vehicle-step-pickup-date" className="text-xs font-semibold text-foreground flex items-center gap-1">
+                <RiCalendarLine className="size-3 text-primary" />
+                <span>Pickup Date & Time</span>
               </label>
-              <select
-                id="booking-pickup-loc"
-                value={draft.pickupLocationId}
-                onChange={(e) => updateDraft({ pickupLocationId: e.target.value })}
-                className="w-full h-10 rounded-lg border border-input bg-background/80 px-2.5 text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
-              >
-                {availableLocations.map((loc) => (
-                  <option key={loc.id} value={loc.id}>
-                    Barangay {loc.barangay || loc.name}
-                  </option>
-                ))}
-              </select>
-              <p className="text-[11px] text-muted-foreground font-medium">
-                Barangay {pickupHub.barangay || "Libertad"}, Butuan City, Agusan del Norte
-              </p>
+              <div className="grid grid-cols-5 gap-1.5">
+                <input
+                  id="vehicle-step-pickup-date"
+                  type="date"
+                  value={draft.pickupDate}
+                  min={new Date().toISOString().split("T")[0]}
+                  onChange={(e) => updateDraft({ pickupDate: e.target.value })}
+                  className="col-span-3 h-10 rounded-lg border border-input bg-background/90 px-2.5 text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+                />
+                <input
+                  type="time"
+                  value={draft.pickupTime}
+                  onChange={(e) => updateDraft({ pickupTime: e.target.value })}
+                  className="col-span-2 h-10 rounded-lg border border-input bg-background/90 px-2 text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+                />
+              </div>
             </div>
 
             <div className="rounded-xl border bg-muted/30 p-3.5 space-y-1.5">
-              <label htmlFor="booking-return-loc" className="text-xs font-semibold text-foreground flex items-center gap-1">
-                <RiMapPinLine className="size-3 text-muted-foreground" />
-                <span>Return Location</span>
+              <label htmlFor="vehicle-step-return-date" className="text-xs font-semibold text-foreground flex items-center gap-1">
+                <RiTimeLine className="size-3 text-primary" />
+                <span>Return Date & Time</span>
               </label>
-              <select
-                id="booking-return-loc"
-                value={draft.returnLocationId}
-                onChange={(e) => updateDraft({ returnLocationId: e.target.value })}
-                className="w-full h-10 rounded-lg border border-input bg-background/80 px-2.5 text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
-              >
-                {availableLocations.map((loc) => (
-                  <option key={loc.id} value={loc.id}>
-                    Barangay {loc.barangay || loc.name}
-                  </option>
-                ))}
-              </select>
-              <p className="text-[11px] text-muted-foreground font-medium">
-                Barangay {returnHub.barangay || pickupHub.barangay || "Ampayon"}, Butuan City, Agusan del Norte
-              </p>
+              <div className="grid grid-cols-5 gap-1.5">
+                <input
+                  id="vehicle-step-return-date"
+                  type="date"
+                  value={draft.returnDate}
+                  min={draft.pickupDate}
+                  onChange={(e) => updateDraft({ returnDate: e.target.value })}
+                  className="col-span-3 h-10 rounded-lg border border-input bg-background/90 px-2.5 text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+                />
+                <input
+                  type="time"
+                  value={draft.returnTime}
+                  onChange={(e) => updateDraft({ returnTime: e.target.value })}
+                  className="col-span-2 h-10 rounded-lg border border-input bg-background/90 px-2 text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+                />
+              </div>
             </div>
           </div>
+
+          {/* Validation Feedback */}
+          {quoteError && (
+            <div
+              role="alert"
+              className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive flex items-center gap-2"
+            >
+              <RiAlertLine className="size-4 shrink-0 text-destructive" />
+              <span className="font-medium">{quoteError}</span>
+            </div>
+          )}
         </div>
+
+        {/* Localized Barangay Handover Stationing & Manual Address Selection */}
+        <PickupAddressPicker />
       </div>
 
       {/* Navigation Controls */}
-      <div className="flex items-center justify-between pt-4 border-t border-border/60">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-border/60">
         <Link href={`/vehicles/${vehicle.id}`}>
           <Button variant="ghost" size="sm">
             Back to Vehicle Overview
           </Button>
         </Link>
 
-        <Button
-          size="lg"
-          onClick={() => router.push("/booking/options")}
-          className="gap-2 font-semibold shadow-md"
-        >
-          <span>Continue to Options & Extras</span>
-          <RiArrowRightLine className="size-4" data-icon="inline-end" />
-        </Button>
+        <div className="flex flex-col sm:items-end gap-1 w-full sm:w-auto">
+          {quoteError && (
+            <span className="text-[11px] text-destructive font-medium text-center sm:text-right">
+              Adjust dates to meet rental duration limits
+            </span>
+          )}
+          <Button
+            size="lg"
+            onClick={() => router.push("/booking/options")}
+            disabled={Boolean(quoteError) || quoteLoading}
+            className="gap-2 font-semibold shadow-md w-full sm:w-auto"
+          >
+            <span>Continue to Options & Extras</span>
+            <RiArrowRightLine className="size-4" data-icon="inline-end" />
+          </Button>
+        </div>
       </div>
     </div>
   )

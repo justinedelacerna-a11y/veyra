@@ -58,6 +58,10 @@ interface DbReservationRow {
   deposit_amount: number
   currency: string
   created_at: string
+  pickup_barangay?: string | null
+  pickup_street_address?: string | null
+  pickup_landmark?: string | null
+  pickup_contact_phone?: string | null
   vehicle: DbVehicle | null
   pickup_location: DbLocation | null
   return_location: DbLocation | null
@@ -109,7 +113,7 @@ export async function getCustomerReservations(): Promise<CustomerReservation[]> 
   const supabase = createClient()
 
   try {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("reservations")
       .select(
         `
@@ -128,6 +132,10 @@ export async function getCustomerReservations(): Promise<CustomerReservation[]> 
         deposit_amount,
         currency,
         created_at,
+        pickup_barangay,
+        pickup_street_address,
+        pickup_landmark,
+        pickup_contact_phone,
         vehicle:vehicles!reservations_vehicle_id_fkey(
           id, make, model, year, transmission, fuel_type, seats, luggage_capacity, daily_rate, currency
         ),
@@ -142,6 +150,48 @@ export async function getCustomerReservations(): Promise<CustomerReservation[]> 
       `
       )
       .order("created_at", { ascending: false })
+
+    // Graceful backward compatibility if remote database has not yet applied the pickup_barangay column migration
+    if (error && error.message?.includes("pickup_barangay")) {
+      const fallback = await supabase
+        .from("reservations")
+        .select(
+          `
+        id,
+        reference,
+        vehicle_id,
+        pickup_location_id,
+        return_location_id,
+        pickup_at,
+        return_at,
+        rental_days,
+        status,
+        payment_status,
+        payment_method,
+        total_amount,
+        deposit_amount,
+        currency,
+        created_at,
+        pickup_street_address,
+        pickup_landmark,
+        pickup_contact_phone,
+        vehicle:vehicles!reservations_vehicle_id_fkey(
+          id, make, model, year, transmission, fuel_type, seats, luggage_capacity, daily_rate, currency
+        ),
+        pickup_location:locations!reservations_pickup_location_id_fkey(
+          id, name, barangay, city, address
+        ),
+        return_location:locations!reservations_return_location_id_fkey(
+          id, name, barangay, city, address
+        ),
+        reservation_extras(id, extra_id, extra_name, daily_rate, total),
+        reservation_drivers(first_name, last_name, email, phone, license_number, license_country)
+      `
+        )
+        .order("created_at", { ascending: false })
+      data = fallback.data as typeof data
+      error = fallback.error
+    }
 
     if (error || !data) {
       console.error("[reservations-repository] query error:", error?.message)
@@ -217,8 +267,11 @@ export async function getCustomerReservations(): Promise<CustomerReservation[]> 
         }),
         pickupLocationId: row.pickup_location_id,
         pickupLocationName: row.pickup_location?.name || "Barangay Libertad Hub",
-        pickupBarangay: row.pickup_location?.barangay || "Libertad",
+        pickupBarangay: row.pickup_barangay || row.pickup_location?.barangay || "Libertad",
         pickupAddress: row.pickup_location?.address || "National Highway, Brgy. Libertad, Butuan City, Agusan del Norte",
+        pickupStreetAddress: row.pickup_street_address || undefined,
+        pickupLandmark: row.pickup_landmark || undefined,
+        pickupContactPhone: row.pickup_contact_phone || undefined,
         pickupDate: pickupDateObj.toISOString().split("T")[0],
         pickupTime: pickupDateObj.toLocaleTimeString("en-US", {
           hour: "2-digit",

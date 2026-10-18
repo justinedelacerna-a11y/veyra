@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server"
 import { createReservation } from "@/features/booking/server"
 import { checkRateLimit, RATE_LIMITS } from "@/lib/rate-limit"
 import { logger, generateCorrelationId, safeErrorMessage } from "@/lib/logger"
+import { createHash } from "crypto"
 
 /**
  * POST /api/reservations
@@ -67,6 +68,11 @@ export async function POST(request: NextRequest) {
       quoteId,
       driver,
       paymentMethod = "card",
+      pickupBarangay,
+      pickupStreetAddress,
+      pickupLandmark,
+      pickupContactPhone,
+      agreedToTerms,
     } = body
 
     if (!vehicleId || !pickupLocationId || !returnLocationId || !pickupAt || !returnAt) {
@@ -93,6 +99,27 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Enforce Terms of Service acceptance server-side
+    if (agreedToTerms !== true) {
+      log.warn("terms_not_accepted", { correlationId })
+      return NextResponse.json(
+        {
+          success: false,
+          error: "terms_required",
+          message: "You must read and agree to Veyra's Terms of Service to confirm your reservation.",
+          correlationId,
+        },
+        { status: 400, headers: { "X-Correlation-ID": correlationId } }
+      )
+    }
+
+    // Compute cryptographic SHA-256 hash of client IP for acceptance audit (never store raw IP)
+    const rawIp =
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      request.headers.get("x-real-ip") ||
+      "unknown"
+    const ipHash = createHash("sha256").update(rawIp).digest("hex")
+
     log.info("reservation_attempt", { vehicleId, quoteId })
 
     const result = await createReservation({
@@ -105,6 +132,12 @@ export async function POST(request: NextRequest) {
       quoteId,
       driver,
       paymentMethod,
+      pickupBarangay,
+      pickupStreetAddress,
+      pickupLandmark,
+      pickupContactPhone,
+      agreedToTerms,
+      ipHash,
     })
 
     if (!result.success) {
@@ -112,9 +145,13 @@ export async function POST(request: NextRequest) {
       const statusCode =
         result.error === "unauthorized"
           ? 401
+          : result.error === "kyc_unverified"
+          ? 403
+          : result.error === "terms_required"
+          ? 400
           : result.error === "conflict" || result.error === "vehicle_unavailable"
           ? 409
-          : result.error === "invalid_dates"
+          : result.error === "invalid_dates" || result.error === "invalid_location"
           ? 422
           : 500
 

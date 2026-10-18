@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -610,6 +610,8 @@ export type Database = {
           city: string
           created_at: string
           id: string
+          latitude: number | null
+          longitude: number | null
           name: string
           operating_hours: string
           pickup_available: boolean
@@ -629,6 +631,8 @@ export type Database = {
           city: string
           created_at?: string
           id?: string
+          latitude?: number | null
+          longitude?: number | null
           name: string
           operating_hours: string
           pickup_available?: boolean
@@ -648,6 +652,8 @@ export type Database = {
           city?: string
           created_at?: string
           id?: string
+          latitude?: number | null
+          longitude?: number | null
           name?: string
           operating_hours?: string
           pickup_available?: boolean
@@ -1267,6 +1273,12 @@ export type Database = {
           payment_status: string
           pickup_at: string
           pickup_location_id: string
+          pickup_barangay?: string | null
+          pickup_street_address?: string | null
+          pickup_landmark?: string | null
+          pickup_contact_phone?: string | null
+          stripe_session_id?: string | null
+          stripe_payment_intent?: string | null
           quote_id: string
           reference: string
           rental_days: number
@@ -1294,6 +1306,12 @@ export type Database = {
           payment_status?: string
           pickup_at: string
           pickup_location_id: string
+          pickup_barangay?: string | null
+          pickup_street_address?: string | null
+          pickup_landmark?: string | null
+          pickup_contact_phone?: string | null
+          stripe_session_id?: string | null
+          stripe_payment_intent?: string | null
           quote_id: string
           reference: string
           rental_days: number
@@ -1321,6 +1339,12 @@ export type Database = {
           payment_status?: string
           pickup_at?: string
           pickup_location_id?: string
+          pickup_barangay?: string | null
+          pickup_street_address?: string | null
+          pickup_landmark?: string | null
+          pickup_contact_phone?: string | null
+          stripe_session_id?: string | null
+          stripe_payment_intent?: string | null
           quote_id?: string
           reference?: string
           rental_days?: number
@@ -1815,6 +1839,84 @@ export type Database = {
           retry_count?: number
           status?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      system_settings: {
+        Row: {
+          description: string | null
+          key: string
+          updated_at: string
+          updated_by_staff_id: string | null
+          value: Json
+        }
+        Insert: {
+          description?: string | null
+          key: string
+          updated_at?: string
+          updated_by_staff_id?: string | null
+          value: Json
+        }
+        Update: {
+          description?: string | null
+          key?: string
+          updated_at?: string
+          updated_by_staff_id?: string | null
+          value?: Json
+        }
+        Relationships: []
+      }
+      terms_versions: {
+        Row: {
+          created_by_staff_id: string | null
+          id: string
+          is_current: boolean
+          published_at: string
+          summary: string | null
+          version: string
+        }
+        Insert: {
+          created_by_staff_id?: string | null
+          id?: string
+          is_current?: boolean
+          published_at?: string
+          summary?: string | null
+          version: string
+        }
+        Update: {
+          created_by_staff_id?: string | null
+          id?: string
+          is_current?: boolean
+          published_at?: string
+          summary?: string | null
+          version?: string
+        }
+        Relationships: []
+      }
+      terms_acceptances: {
+        Row: {
+          accepted_at: string
+          customer_id: string
+          id: string
+          ip_hash: string | null
+          reservation_id: string | null
+          terms_version_id: string
+        }
+        Insert: {
+          accepted_at?: string
+          customer_id: string
+          id?: string
+          ip_hash?: string | null
+          reservation_id?: string | null
+          terms_version_id: string
+        }
+        Update: {
+          accepted_at?: string
+          customer_id?: string
+          id?: string
+          ip_hash?: string | null
+          reservation_id?: string | null
+          terms_version_id?: string
         }
         Relationships: []
       }

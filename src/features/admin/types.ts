@@ -86,6 +86,9 @@ export interface AdminReservation {
   pickupLocationId: string
   pickupLocationName: string
   pickupBarangay?: string
+  pickupStreetAddress?: string
+  pickupLandmark?: string
+  pickupContactPhone?: string
   pickupDate: string
   pickupTime: string
   returnLocationId: string
@@ -229,8 +232,18 @@ export type AuditAction =
   | "reservation.confirmed"
   | "reservation.cancelled"
   | "reservation.status_changed"
+  | "payment.initiated"
+  | "payment.pending"
   | "payment.captured"
+  | "payment.failed"
+  | "payment.cancelled"
   | "payment.refunded"
+  | "refund.initiated"
+  | "refund.completed"
+  | "kyc.submitted"
+  | "kyc.approved"
+  | "kyc.rejected"
+  | "kyc.resubmitted"
   | "vehicle.status_changed"
   | "vehicle.assigned"
   | "fleet.maintenance_scheduled"

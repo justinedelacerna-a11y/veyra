@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
       const statusMap: Record<string, number> = {
         payments_disabled: 503,
         unauthorized: 403,
+        kyc_unverified: 403,
         customer_not_found: 404,
         reservation_not_found: 404,
         quote_expired: 410,

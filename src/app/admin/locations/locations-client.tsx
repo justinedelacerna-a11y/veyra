@@ -10,13 +10,15 @@ import {
 import type { AdminLocation, AdminBranch } from "@/features/admin/server/locations-service"
 import { RiMapPin2Line, RiBuildingLine } from "@remixicon/react"
 
+import { ButuanMap } from "@/features/locations/components/butuan-map"
+
 interface LocationsClientProps {
   locations: AdminLocation[]
   branches: AdminBranch[]
 }
 
 export function LocationsClient({ locations, branches }: LocationsClientProps) {
-  const [tab, setTab] = React.useState<"locations" | "branches">("locations")
+  const [tab, setTab] = React.useState<"locations" | "branches" | "map">("locations")
 
   const activeLocations = locations.filter((l) => l.status === "active")
 
@@ -47,6 +49,7 @@ export function LocationsClient({ locations, branches }: LocationsClientProps) {
         {([
           { key: "locations", label: `Butuan Barangay Hubs (${locations.length})` },
           { key: "branches", label: `Operational Branches (${branches.length})` },
+          { key: "map", label: "City Map View" },
         ] as const).map((t) => (
           <button
             key={t.key}
@@ -190,6 +193,24 @@ export function LocationsClient({ locations, branches }: LocationsClientProps) {
               ))}
             </div>
           )}
+        </section>
+      )}
+
+      {tab === "map" && (
+        <section className="space-y-4">
+          <SectionHeader
+            title="Geographic Hub Distribution — Butuan City"
+            badge={<StatusBadge status="success" label="Live Hub Overlay" size="sm" />}
+          />
+          <p className="text-xs text-muted-foreground">
+            Geographic overview of Veyra&apos;s 8 operational pickup hubs, roads, and barangays in Butuan City, Agusan del Norte.
+          </p>
+          <div className="rounded-xl border bg-card overflow-hidden shadow-sm">
+            <ButuanMap
+              mode="admin"
+              className="h-[550px]"
+            />
+          </div>
         </section>
       )}
     </div>

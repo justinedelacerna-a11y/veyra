@@ -1,6 +1,7 @@
 import "server-only"
 import { createServiceClient } from "@/lib/supabase/server"
 import { checkVehicleAvailability } from "@/features/vehicles/server"
+import { getRentalDurationConfig } from "@/features/admin/server/settings-service"
 import type { BookingPricingSummary } from "../types"
 
 export interface QuoteRequestParams {
@@ -122,6 +123,27 @@ export async function calculateQuote(
       success: false,
       error: "invalid_dates",
       message: "Minimum rental duration is 1 hour.",
+    }
+  }
+
+  // Configured min/max duration check
+  const durationConfig = await getRentalDurationConfig()
+  const diffMs = returnAt.getTime() - pickupAt.getTime()
+  const estimatedDays = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)))
+
+  if (estimatedDays < durationConfig.minDays) {
+    return {
+      success: false,
+      error: "invalid_dates",
+      message: `Minimum rental duration is ${durationConfig.minDays} day${durationConfig.minDays !== 1 ? "s" : ""}.`,
+    }
+  }
+
+  if (durationConfig.maxDays !== null && estimatedDays > durationConfig.maxDays) {
+    return {
+      success: false,
+      error: "invalid_dates",
+      message: `Maximum rental duration is ${durationConfig.maxDays} days.`,
     }
   }
 

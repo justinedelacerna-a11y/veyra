@@ -1086,12 +1086,20 @@ export async function reviewCustomerDocumentAction(
       return { success: false, message: `Failed to update document: ${updateErr.message}`, error: updateErr.message }
     }
 
-    // 3. If driver license is approved, verify the customer profile
+    // 3. Update customer profile verification status
     if (decision === "approved" && doc.type === "driver_license") {
       await supabase
         .from("customers")
         .update({
           verification_status: "verified",
+          updated_at: now,
+        })
+        .eq("id", doc.customer_id)
+    } else if (decision === "rejected") {
+      await supabase
+        .from("customers")
+        .update({
+          verification_status: "rejected",
           updated_at: now,
         })
         .eq("id", doc.customer_id)
@@ -1101,7 +1109,7 @@ export async function reviewCustomerDocumentAction(
     await recordAuditEvent({
       actorId: staff.userId,
       actorRole: staff.role,
-      action: "customer.updated",
+      action: decision === "approved" ? "kyc.approved" : "kyc.rejected",
       resourceType: "customer_document",
       resourceId: documentId,
       result: "success",
@@ -1114,6 +1122,9 @@ export async function reviewCustomerDocumentAction(
     revalidatePath("/admin/customers")
     revalidatePath(`/admin/customers/${doc.customer_id}`)
     revalidatePath("/account/documents")
+    revalidatePath("/account")
+    revalidatePath("/booking/payment")
+    revalidatePath("/booking/review")
 
     return {
       success: true,

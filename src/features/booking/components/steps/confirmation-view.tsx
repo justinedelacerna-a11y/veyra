@@ -32,9 +32,45 @@ export function ConfirmationView() {
 
   const reference =
     searchParams.get("ref") || draft.bookingReference || "VYR-DEMO-1042"
+  const isCancelled = searchParams.get("cancelled") === "true"
+  const isFailed = searchParams.get("failed") === "true"
+  const sessionId = searchParams.get("session_id")
+
+  const methodLabel =
+    draft.paymentMethod === "pay_at_pickup" || draft.paymentMethod === "counter"
+      ? "Pay at Pickup (In-Person Settlement)"
+      : draft.paymentMethod === "gcash"
+      ? "GCash Mobile Wallet"
+      : draft.paymentMethod === "maya"
+      ? "Maya Digital Wallet"
+      : draft.paymentMethod === "card"
+      ? "Credit / Debit Card"
+      : "Pay at Pickup (In-Person Settlement)"
 
   return (
     <div className="max-w-3xl mx-auto space-y-8 py-6">
+      {/* Cancellation / Failure Warning Notice if customer returned from failed checkout */}
+      {(isCancelled || isFailed) && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 space-y-3">
+          <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-bold text-sm">
+            <RiShieldCheckLine className="size-4 shrink-0" />
+            <span>Payment Incomplete — Reservation Held Safely</span>
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Your transaction was not completed. Do not worry: your booking reference{" "}
+            <span className="font-mono font-semibold text-foreground">{reference}</span> is held.
+            You can retry online payment or choose to settle in person upon vehicle handover.
+          </p>
+          <div className="pt-1">
+            <Link href={`/booking/payment?ref=${reference}`}>
+              <Button size="sm" variant="default" className="text-xs gap-1.5 shadow-xs">
+                <span>Retry Payment Settlement</span>
+              </Button>
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Success Hero Card */}
       <div className="rounded-3xl border bg-card/80 p-6 sm:p-10 text-center shadow-lg backdrop-blur-xs space-y-4">
         <div className="flex justify-center">
@@ -47,20 +83,20 @@ export function ConfirmationView() {
           <div className="flex flex-wrap items-center justify-center gap-2">
             <StatusBadge
               status="success"
-              label="Reservation Created"
+              label="Reservation Confirmed"
               size="sm"
             />
             <StatusBadge
-              status="warning"
-              label="Payment: Pending / Deferred"
+              status={isCancelled || isFailed ? "warning" : "info"}
+              label={isCancelled || isFailed ? "Payment: Action Needed" : "Payment: Settlement Pending"}
               size="sm"
             />
           </div>
           <h1 className="font-heading text-2xl sm:text-4xl font-bold tracking-tight text-foreground">
-            Reservation Created
+            Reservation Confirmed
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground max-w-md mx-auto">
-            Your vehicle reservation has been successfully recorded in Veyra. Payment processing is deferred and can be completed later at vehicle handover or via concierge.
+            Your vehicle reservation has been successfully confirmed in Veyra. Review your itinerary and handover instructions below.
           </p>
         </div>
 
@@ -124,13 +160,35 @@ export function ConfirmationView() {
               <RiMapPinLine className="size-4 text-primary" />
               <span>Pickup & Handover</span>
             </div>
-            <p className="text-foreground font-medium">{pickupLocationName}</p>
+            <p className="text-foreground font-medium">
+              {draft.pickupBarangay && !pickupLocationName.toLowerCase().includes(draft.pickupBarangay.toLowerCase())
+                ? `Barangay ${draft.pickupBarangay} (Dispatched via ${pickupLocationName})`
+                : pickupLocationName}
+            </p>
             <p className="text-muted-foreground">
               {draft.pickupDate} at {draft.pickupTime}
             </p>
-            <span className="text-[11px] text-primary font-medium block pt-1">
-              Valet Bay: Terminal Arrival Zone Bay 4
-            </span>
+            {draft.pickupStreetAddress ? (
+              <div className="pt-1.5 mt-1 border-t border-border/40 text-[11px] space-y-0.5">
+                <span className="text-foreground font-medium block">
+                  Delivery Address: {draft.pickupStreetAddress}
+                </span>
+                {draft.pickupLandmark && (
+                  <span className="text-muted-foreground block">
+                    Landmark: {draft.pickupLandmark}
+                  </span>
+                )}
+                {draft.pickupContactPhone && (
+                  <span className="text-muted-foreground block">
+                    Contact: {draft.pickupContactPhone}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <span className="text-[11px] text-primary font-medium block pt-1">
+                Valet Bay: Handover Station Arrival Zone
+              </span>
+            )}
           </div>
 
           {/* Return */}
@@ -152,11 +210,27 @@ export function ConfirmationView() {
         {/* Pricing & Payment Summary */}
         <div className="rounded-xl border bg-muted/40 p-4 space-y-2 text-xs">
           <div className="flex justify-between items-center text-muted-foreground">
-            <span>Payment Status:</span>
-            <span className="font-semibold text-amber-600 dark:text-amber-400">
-              Pending / Deferred (Pay at Handover)
+            <span>Payment Method:</span>
+            <span className="font-semibold text-foreground">
+              {methodLabel}
             </span>
           </div>
+
+          <div className="flex justify-between items-center text-muted-foreground">
+            <span>Payment Status:</span>
+            <span className="font-semibold text-amber-600 dark:text-amber-400">
+              {isCancelled || isFailed ? "Cancelled / Pending" : "Pending / Settle at Handover"}
+            </span>
+          </div>
+
+          {sessionId && (
+            <div className="flex justify-between items-center text-muted-foreground">
+              <span>Checkout Session Ref:</span>
+              <span className="font-mono text-[11px] text-foreground">
+                {sessionId}
+              </span>
+            </div>
+          )}
 
           <div className="flex justify-between items-center text-muted-foreground">
             <span>Total Rental Amount:</span>

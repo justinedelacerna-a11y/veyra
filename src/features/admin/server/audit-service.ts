@@ -22,7 +22,7 @@ import type { Json } from "@/types/database"
 
 export interface RecordAuditEventInput {
   actorId: string
-  actorRole: StaffRole
+  actorRole: StaffRole | "customer" | "system"
   action: AuditAction
   resourceType: string
   resourceId: string

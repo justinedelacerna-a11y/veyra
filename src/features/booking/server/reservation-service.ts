@@ -3,6 +3,8 @@ import { auth, currentUser } from "@clerk/nextjs/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { checkVehicleAvailability } from "@/features/vehicles/server"
 import { calculateQuote } from "./quote-service"
+import { getRentalDurationConfig } from "@/features/admin/server/settings-service"
+import { validatePickupLocation } from "@/features/locations/data/butuan-city-data"
 import type { DriverDetails } from "../types"
 
 export interface CreateReservationParams {
@@ -16,6 +18,12 @@ export interface CreateReservationParams {
   driver: DriverDetails
   paymentMethod?: "card" | "e-wallet" | "counter"
   initialStatus?: "held" | "confirmed"
+  pickupBarangay?: string
+  pickupStreetAddress?: string
+  pickupLandmark?: string
+  pickupContactPhone?: string
+  agreedToTerms?: boolean
+  ipHash?: string
 }
 
 export type ReservationResult =
@@ -34,10 +42,13 @@ export type ReservationResult =
         | "unauthorized"
         | "customer_not_found"
         | "invalid_dates"
+        | "invalid_location"
         | "vehicle_unavailable"
         | "quote_expired"
         | "conflict"
         | "database_error"
+        | "kyc_unverified"
+        | "terms_required"
       message: string
       conflict?: string
     }
@@ -191,6 +202,33 @@ export async function createReservation(
   const customerId = customer.id
   const { vehicleId } = params
 
+  // 2b. Enforce Terms of Service acceptance server-side
+  if (params.agreedToTerms !== true) {
+    return {
+      success: false,
+      error: "terms_required",
+      message: "You must read and agree to Veyra's Terms of Service to confirm a reservation.",
+    }
+  }
+
+  // 2c. Enforce Butuan City service boundary and pickup feasibility
+  if (params.pickupStreetAddress || params.pickupBarangay) {
+    const locValidation = validatePickupLocation({
+      barangay: params.pickupBarangay,
+      streetAddress: params.pickupStreetAddress,
+    })
+
+    if (!locValidation.isValid || !locValidation.isFeasible) {
+      return {
+        success: false,
+        error: "invalid_location",
+        message:
+          locValidation.reason ||
+          "Requested pickup location is outside Veyra's Butuan City service boundary.",
+      }
+    }
+  }
+
   // 3. Execute reservation creation within per-vehicle mutex
   return await vehicleLocks.acquire(vehicleId, async (): Promise<ReservationResult> => {
     const pickupAt = new Date(params.pickupAt)
@@ -201,6 +239,27 @@ export async function createReservation(
         success: false,
         error: "invalid_dates",
         message: "Invalid reservation dates provided.",
+      }
+    }
+
+    // Enforce configured rental duration limits server-side
+    const durationConfig = await getRentalDurationConfig()
+    const diffMs = returnAt.getTime() - pickupAt.getTime()
+    const estimatedDays = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)))
+
+    if (estimatedDays < durationConfig.minDays) {
+      return {
+        success: false,
+        error: "invalid_dates",
+        message: `Minimum rental duration is ${durationConfig.minDays} day${durationConfig.minDays !== 1 ? "s" : ""}.`,
+      }
+    }
+
+    if (durationConfig.maxDays !== null && estimatedDays > durationConfig.maxDays) {
+      return {
+        success: false,
+        error: "invalid_dates",
+        message: `Maximum rental duration is ${durationConfig.maxDays} days.`,
       }
     }
 
@@ -331,8 +390,48 @@ export async function createReservation(
 
     const holdExpiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString() // 15-min TTL
 
+    const targetStatus =
+      params.initialStatus ||
+      (process.env.PAYMENTS_ENABLED === "true" && dbPaymentMethod !== "counter"
+        ? "held"
+        : "confirmed")
+
+    // 7b. Server-Side KYC Gate: If finalizing a confirmed booking, enforce customer verification
+    if (targetStatus === "confirmed") {
+      const { data: customerRow } = await supabase
+        .from("customers")
+        .select("verification_status")
+        .eq("id", customerId)
+        .single()
+
+      const { data: approvedDl } = await supabase
+        .from("customer_documents")
+        .select("id")
+        .eq("customer_id", customerId)
+        .eq("type", "driver_license")
+        .eq("status", "approved")
+        .maybeSingle()
+
+      const isKycVerified =
+        customerRow?.verification_status === "verified" || Boolean(approvedDl)
+
+      if (!isKycVerified) {
+        const kycStatus = customerRow?.verification_status || "not_submitted"
+        return {
+          success: false,
+          error: "kyc_unverified",
+          message:
+            kycStatus === "pending"
+              ? "Your driver verification is currently under review by our operations team. You cannot finalize a confirmed rental until approved."
+              : kycStatus === "rejected"
+              ? "Your driver verification was rejected. Please review feedback and resubmit your documents in your account before confirming."
+              : "Driver verification is required before confirming a rental reservation. Please complete identity verification in your account.",
+        }
+      }
+    }
+
     // 8. Insert Reservation Record
-    const { data: reservation, error: rErr } = await supabase
+    let { data: reservation, error: rErr } = await supabase
       .from("reservations")
       .insert({
         reference,
@@ -345,19 +444,56 @@ export async function createReservation(
         return_at: returnIso,
         rental_days: rentalDays,
         hold_expires_at: holdExpiresAt,
-        status:
-          params.initialStatus ||
-          (process.env.PAYMENTS_ENABLED === "true" && dbPaymentMethod !== "counter"
-            ? "held"
-            : "confirmed"),
+        status: targetStatus,
         payment_status: "pending",
         payment_method: dbPaymentMethod,
         total_amount: totalRentalCentavos,
         deposit_amount: depositAmountCentavos,
         currency: "PHP",
+        pickup_barangay: params.pickupBarangay || null,
+        pickup_street_address: params.pickupStreetAddress || null,
+        pickup_landmark: params.pickupLandmark || null,
+        pickup_contact_phone: params.pickupContactPhone || null,
       })
       .select("id, reference, status")
       .single()
+
+    // Graceful backward compatibility if remote database has not yet applied the pickup_barangay column migration
+    if (rErr && rErr.message?.includes("pickup_barangay")) {
+      const fallbackStreetAddress =
+        params.pickupBarangay && !params.pickupStreetAddress?.includes(params.pickupBarangay)
+          ? `[Barangay: ${params.pickupBarangay}] ${params.pickupStreetAddress || ""}`.trim()
+          : params.pickupStreetAddress || null
+
+      const fallbackInsert = await supabase
+        .from("reservations")
+        .insert({
+          reference,
+          customer_id: customerId,
+          quote_id: quoteId,
+          vehicle_id: vehicleId,
+          pickup_location_id: params.pickupLocationId,
+          return_location_id: params.returnLocationId,
+          pickup_at: pickupIso,
+          return_at: returnIso,
+          rental_days: rentalDays,
+          hold_expires_at: holdExpiresAt,
+          status: targetStatus,
+          payment_status: "pending",
+          payment_method: dbPaymentMethod,
+          total_amount: totalRentalCentavos,
+          deposit_amount: depositAmountCentavos,
+          currency: "PHP",
+          pickup_street_address: fallbackStreetAddress,
+          pickup_landmark: params.pickupLandmark || null,
+          pickup_contact_phone: params.pickupContactPhone || null,
+        })
+        .select("id, reference, status")
+        .single()
+
+      reservation = fallbackInsert.data
+      rErr = fallbackInsert.error
+    }
 
     if (rErr || !reservation) {
       console.error("[reservation-service] reservation insert error:", rErr?.message)
@@ -431,6 +567,27 @@ export async function createReservation(
       .from("quotes")
       .update({ status: "converted" })
       .eq("id", quoteId)
+
+    // 13. Record Terms of Service acceptance for this reservation
+    try {
+      const { data: currentTerms } = await supabase
+        .from("terms_versions")
+        .select("id")
+        .eq("is_current", true)
+        .maybeSingle()
+
+      if (currentTerms) {
+        await supabase.from("terms_acceptances").insert({
+          customer_id: customerId,
+          terms_version_id: currentTerms.id,
+          reservation_id: reservation.id,
+          ip_hash: params.ipHash || null,
+          accepted_at: new Date().toISOString(),
+        })
+      }
+    } catch (termsErr) {
+      console.warn("[reservation-service] non-critical terms_acceptance record error:", termsErr)
+    }
 
     return {
       success: true,

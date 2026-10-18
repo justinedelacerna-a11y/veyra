@@ -68,10 +68,15 @@ export interface PersistedBookingContext {
   returnDate: string
   returnTime: string
   selectedExtras: string[]
-  paymentMethod?: "card" | "e-wallet" | "counter"
+  paymentMethod?: "card" | "e-wallet" | "counter" | "pay_at_pickup" | "gcash" | "maya" | "online"
   agreedToTerms?: boolean
   agreedToCancellation?: boolean
   bookingReference?: string
+  // Manual pickup address (optional — any Butuan City barangay or specific address)
+  pickupBarangay?: string
+  pickupStreetAddress?: string
+  pickupLandmark?: string
+  pickupContactPhone?: string
 }
 
 /**
@@ -80,7 +85,7 @@ export interface PersistedBookingContext {
  */
 export interface BookingDraft extends PersistedBookingContext {
   driver: DriverDetails
-  paymentMethod: "card" | "e-wallet" | "counter"
+  paymentMethod: "card" | "e-wallet" | "counter" | "pay_at_pickup" | "gcash" | "maya" | "online"
   agreedToTerms: boolean
   agreedToCancellation: boolean
 }
@@ -149,7 +154,7 @@ export interface BookingContextValue {
   updateDriver: (field: keyof DriverDetails, value: string) => void
   validateDriverStep: () => boolean
   validatePaymentStep: () => boolean
-  completeBooking: () => Promise<string>
+  completeBooking: (overrides?: Partial<BookingDraft>) => Promise<string>
   resetBooking: () => void
 }
 

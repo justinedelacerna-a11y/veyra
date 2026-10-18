@@ -12,6 +12,7 @@ import {
   RiUserSettingsLine,
   RiShieldKeyholeLine,
   RiShieldCheckLine,
+  RiBankCardLine,
 } from "@remixicon/react"
 import { useUser } from "@clerk/nextjs"
 
@@ -39,9 +40,14 @@ export const accountNavItems: AccountNavItem[] = [
     icon: RiSteering2Line,
   },
   {
-    title: "Documents",
+    title: "Documents & KYC",
     href: "/account/documents",
     icon: RiFileList3Line,
+  },
+  {
+    title: "Payments & Billing",
+    href: "/account/payments",
+    icon: RiBankCardLine,
   },
   {
     title: "Profile Settings",

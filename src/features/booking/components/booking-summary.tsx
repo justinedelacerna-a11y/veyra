@@ -118,7 +118,16 @@ export function BookingSummary({
             <span className="font-semibold text-foreground block">
               Pickup Station
             </span>
-            <span className="text-muted-foreground">{pickupLocationName}</span>
+            <span className="text-muted-foreground">
+              {draft.pickupBarangay && !pickupLocationName.toLowerCase().includes(draft.pickupBarangay.toLowerCase())
+                ? `Barangay ${draft.pickupBarangay} (via ${pickupLocationName})`
+                : pickupLocationName}
+            </span>
+            {draft.pickupStreetAddress && (
+              <span className="text-[11px] text-muted-foreground/90 block truncate" title={draft.pickupStreetAddress}>
+                Address: {draft.pickupStreetAddress}
+              </span>
+            )}
             <span className="text-[11px] text-foreground font-medium block">
               {formatDateDisplay(draft.pickupDate, draft.pickupTime)}
             </span>

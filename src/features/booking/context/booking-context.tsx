@@ -118,6 +118,22 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
               typeof parsed.bookingReference === "string"
                 ? parsed.bookingReference
                 : undefined,
+            pickupBarangay:
+              typeof parsed.pickupBarangay === "string"
+                ? parsed.pickupBarangay
+                : undefined,
+            pickupStreetAddress:
+              typeof parsed.pickupStreetAddress === "string"
+                ? parsed.pickupStreetAddress
+                : undefined,
+            pickupLandmark:
+              typeof parsed.pickupLandmark === "string"
+                ? parsed.pickupLandmark
+                : undefined,
+            pickupContactPhone:
+              typeof parsed.pickupContactPhone === "string"
+                ? parsed.pickupContactPhone
+                : undefined,
           }
         }
       } catch {
@@ -197,6 +213,10 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       agreedToTerms,
       agreedToCancellation,
       bookingReference,
+      pickupBarangay: persistedContext?.pickupBarangay || undefined,
+      pickupStreetAddress: persistedContext?.pickupStreetAddress || "",
+      pickupLandmark: persistedContext?.pickupLandmark || "",
+      pickupContactPhone: persistedContext?.pickupContactPhone || "",
     }
   }, [searchParams])
 
@@ -452,6 +472,10 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
           agreedToTerms: draft.agreedToTerms,
           agreedToCancellation: draft.agreedToCancellation,
           bookingReference: draft.bookingReference,
+          pickupBarangay: draft.pickupBarangay,
+          pickupStreetAddress: draft.pickupStreetAddress,
+          pickupLandmark: draft.pickupLandmark,
+          pickupContactPhone: draft.pickupContactPhone,
         }
         sessionStorage.setItem(STORAGE_KEY, JSON.stringify(safeContext))
       } catch {
@@ -563,14 +587,15 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
   }, [draft.agreedToTerms, draft.agreedToCancellation])
 
   // Complete booking: Creates live reservation in Supabase when vehicleId is real UUID
-  const completeBooking = React.useCallback(async (): Promise<string> => {
-    const vid = draft.vehicleId
+  const completeBooking = React.useCallback(async (overrides?: Partial<BookingDraft>): Promise<string> => {
+    const effectiveDraft = { ...draft, ...(overrides || {}) }
+    const vid = effectiveDraft.vehicleId
 
     if (isRealUuid(vid)) {
       setStatus("submitting")
 
-      const pickupIso = `${draft.pickupDate}T${draft.pickupTime}:00Z`
-      const returnIso = `${draft.returnDate}T${draft.returnTime}:00Z`
+      const pickupIso = `${effectiveDraft.pickupDate}T${effectiveDraft.pickupTime}:00Z`
+      const returnIso = `${effectiveDraft.returnDate}T${effectiveDraft.returnTime}:00Z`
 
       const res = await fetch("/api/reservations", {
         method: "POST",
@@ -581,10 +606,15 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
           returnLocationId: returnHub.id,
           pickupAt: pickupIso,
           returnAt: returnIso,
-          selectedExtras: draft.selectedExtras,
+          selectedExtras: effectiveDraft.selectedExtras,
           quoteId: liveQuote?.quoteId,
-          driver: draft.driver,
-          paymentMethod: draft.paymentMethod,
+          driver: effectiveDraft.driver,
+          paymentMethod: effectiveDraft.paymentMethod,
+          pickupBarangay: effectiveDraft.pickupBarangay,
+          pickupStreetAddress: effectiveDraft.pickupStreetAddress,
+          pickupLandmark: effectiveDraft.pickupLandmark,
+          pickupContactPhone: effectiveDraft.pickupContactPhone,
+          agreedToTerms: effectiveDraft.agreedToTerms,
         }),
       })
 
@@ -599,8 +629,11 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       const reservationId = data.reservationId
       updateDraft({ bookingReference: reference })
 
-      // For online payment methods (Card, E-Wallet), create checkout session
-      if (draft.paymentMethod === "card" || draft.paymentMethod === "e-wallet") {
+      // For online payment methods (Card, GCash, Maya, E-Wallet), create checkout session
+      const isOnlineMethod =
+        draft.paymentMethod !== "counter" && draft.paymentMethod !== "pay_at_pickup"
+
+      if (isOnlineMethod) {
         try {
           const checkoutRes = await fetch("/api/checkout", {
             method: "POST",

@@ -5,6 +5,8 @@ import type {
   CustomerProfile,
   CustomerDocument,
   DriverRentalProfile,
+  CustomerKycSummary,
+  KycVerificationStatus,
 } from "../types"
 
 /**
@@ -24,7 +26,7 @@ export async function getCustomerProfile(): Promise<CustomerProfile | null> {
   try {
     const { data: customer, error } = await supabase
       .from("customers")
-      .select("id, first_name, last_name, phone, membership_tier, membership_number, total_rentals, preferred_hub_id, created_at, locations(name)")
+      .select("id, first_name, last_name, phone, membership_tier, membership_number, total_rentals, verification_status, preferred_hub_id, created_at, locations(name)")
       .maybeSingle()
 
     if (error) {
@@ -58,6 +60,7 @@ export async function getCustomerProfile(): Promise<CustomerProfile | null> {
         preferredHubId: customer.preferred_hub_id || "",
         preferredHubName: locName || "Flagship Airport Terminal",
         totalRentals: customer.total_rentals || 0,
+        verificationStatus: (customer.verification_status as KycVerificationStatus) || "not_submitted",
       }
     }
 
@@ -108,7 +111,7 @@ export async function getCustomerDocuments(): Promise<CustomerDocument[]> {
   try {
     const { data, error } = await supabase
       .from("customer_documents")
-      .select("id, type, original_filename, status, expires_at, created_at")
+      .select("id, type, original_filename, status, rejection_reason, expires_at, created_at, reviewed_at")
       .order("created_at", { ascending: false })
 
     if (error || !data) {
@@ -153,11 +156,94 @@ export async function getCustomerDocuments(): Promise<CustomerDocument[]> {
         year: "numeric",
       }),
       expiresAt: doc.expires_at || undefined,
+      rejectionReason: doc.rejection_reason || undefined,
       requiredForRental: doc.type === "driver_license",
     }))
   } catch (err) {
     console.error("[customer-repository] unexpected error fetching documents:", err)
     return []
+  }
+}
+
+/**
+ * Fetch unified Customer KYC status summary for booking gate & account display.
+ */
+export async function getCustomerKycStatus(): Promise<CustomerKycSummary> {
+  const user = await currentUser()
+  if (!user) {
+    return {
+      status: "not_submitted",
+      statusLabel: "Authentication Required",
+      hasDriverLicense: false,
+      hasGovernmentId: false,
+      requiredDocumentsUploaded: false,
+      documents: [],
+    }
+  }
+
+  const supabase = createClient()
+
+  try {
+    const { data: customer } = await supabase
+      .from("customers")
+      .select("id, verification_status")
+      .maybeSingle()
+
+    const documents = await getCustomerDocuments()
+
+    const dlDoc = documents.find((d) => d.category === "driver_license")
+    const govDoc = documents.find((d) => d.category === "government_id" || d.category === "passport")
+
+    const hasDriverLicense = dlDoc?.status === "approved"
+    const hasGovernmentId = govDoc?.status === "approved"
+    const hasPendingDocs = documents.some((d) => d.status === "pending_review")
+    const hasRejectedDocs = documents.some((d) => d.status === "rejected")
+    const rejectedDoc = documents.find((d) => d.status === "rejected")
+
+    let status: KycVerificationStatus = "not_submitted"
+    let statusLabel = "Not Submitted"
+
+    const rawStatus = customer?.verification_status
+
+    if (rawStatus === "verified" || hasDriverLicense) {
+      status = "verified"
+      statusLabel = "Verified"
+    } else if (rawStatus === "rejected" || hasRejectedDocs) {
+      status = "rejected"
+      statusLabel = "Rejected — Action Required"
+    } else if (rawStatus === "requires_resubmission") {
+      status = "requires_resubmission"
+      statusLabel = "Requires Resubmission"
+    } else if (rawStatus === "pending" || hasPendingDocs || documents.length > 0) {
+      status = "pending_review"
+      statusLabel = "Pending Review"
+    } else {
+      status = "not_submitted"
+      statusLabel = "Not Submitted"
+    }
+
+    const latestDoc = documents[0]
+
+    return {
+      status,
+      statusLabel,
+      submittedAt: latestDoc?.uploadedAt,
+      rejectionReason: rejectedDoc?.rejectionReason,
+      hasDriverLicense,
+      hasGovernmentId,
+      requiredDocumentsUploaded: Boolean(dlDoc && dlDoc.status !== "not_uploaded"),
+      documents,
+    }
+  } catch (err) {
+    console.error("[customer-repository] Error fetching KYC status:", err)
+    return {
+      status: "not_submitted",
+      statusLabel: "Status Check Unavailable",
+      hasDriverLicense: false,
+      hasGovernmentId: false,
+      requiredDocumentsUploaded: false,
+      documents: [],
+    }
   }
 }
 
@@ -208,3 +294,72 @@ export async function getCustomerDriverProfile(): Promise<DriverRentalProfile> {
     pointsOrViolations: "Clean Record • Zero Demerit Points",
   }
 }
+
+export interface CustomerPaymentRecord {
+  id: string
+  reservationId: string
+  reservationReference: string
+  amount: number
+  currency: string
+  method: string
+  status: string
+  provider: string | null
+  providerPaymentId: string | null
+  providerTxnRef: string | null
+  failureReason: string | null
+  createdAt: string
+}
+
+/**
+ * Fetch transaction and payment history for the authenticated customer.
+ */
+export async function getCustomerPayments(): Promise<CustomerPaymentRecord[]> {
+  const user = await currentUser()
+  if (!user) return []
+
+  const supabase = createClient()
+
+  try {
+    const { data: customer } = await supabase
+      .from("customers")
+      .select("id")
+      .maybeSingle()
+
+    if (!customer) return []
+
+    const { data, error } = await supabase
+      .from("payments")
+      .select("id, reservation_id, amount, currency, status, method, provider, provider_payment_id, provider_txn_ref, failure_reason, created_at, reservations(reference)")
+      .eq("customer_id", customer.id)
+      .order("created_at", { ascending: false })
+
+    if (error || !data) {
+      console.warn("[customer-repository] error fetching customer payments:", error?.message)
+      return []
+    }
+
+    return data.map((p) => {
+      const resObj = Array.isArray(p.reservations) ? p.reservations[0] : p.reservations
+      const ref = (resObj as { reference?: string } | null)?.reference || "VYR-RESERVATION"
+
+      return {
+        id: p.id,
+        reservationId: p.reservation_id,
+        reservationReference: ref,
+        amount: Number(p.amount) / 100, // minor units to standard PHP
+        currency: p.currency || "PHP",
+        method: p.method || "counter",
+        status: p.status,
+        provider: p.provider,
+        providerPaymentId: p.provider_payment_id,
+        providerTxnRef: p.provider_txn_ref,
+        failureReason: p.failure_reason,
+        createdAt: p.created_at,
+      }
+    })
+  } catch (err) {
+    console.error("[customer-repository] unexpected error fetching payments:", err)
+    return []
+  }
+}
+

@@ -13,6 +13,7 @@ import {
   RiArrowRightLine,
   RiHistoryLine,
   RiCheckDoubleLine,
+  RiBankCardLine,
 } from "@remixicon/react"
 
 export const metadata: Metadata = {
@@ -108,7 +109,7 @@ export default async function AccountOverviewPage() {
           Handover Readiness
         </h2>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Driver License */}
           <Link
             href="/account/driver"
@@ -180,6 +181,31 @@ export default async function AccountOverviewPage() {
             </div>
             <span className="text-[11px] font-medium text-primary flex items-center gap-1 pt-1">
               <span>Manage Security</span>
+              <RiArrowRightLine className="size-3 transition-transform group-hover:translate-x-0.5" />
+            </span>
+          </Link>
+
+          {/* Payments & Billing */}
+          <Link
+            href="/account/payments"
+            className="rounded-xl border bg-card p-4 hover:border-primary/40 hover:bg-muted/30 transition-all flex flex-col justify-between space-y-3 group"
+          >
+            <div className="flex items-center justify-between">
+              <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                <RiBankCardLine className="size-4" />
+              </div>
+              <StatusBadge status="info" label="Active" size="sm" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
+                Payments & Billing
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Settlement channels & transaction receipts.
+              </p>
+            </div>
+            <span className="text-[11px] font-medium text-primary flex items-center gap-1 pt-1">
+              <span>View Billing</span>
               <RiArrowRightLine className="size-3 transition-transform group-hover:translate-x-0.5" />
             </span>
           </Link>

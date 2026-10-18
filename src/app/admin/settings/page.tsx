@@ -1,16 +1,26 @@
 import * as React from "react"
 import { Metadata } from "next"
 import { requireAdminStaff } from "@/features/admin/server/admin-auth"
+import { getRentalDurationConfig } from "@/features/admin/server/settings-service"
 import { PageHeader } from "@/components/layout/page-header"
 import { SectionHeader } from "@/components/admin/primitives"
 import { StatusBadge } from "@/components/common/status-badge"
+import { RentalDurationSettingsForm } from "@/features/admin/components/rental-duration-settings-form"
 import {
   RiShieldCheckLine,
   RiBuilding2Line,
   RiMoneyDollarCircleLine,
   RiCarLine,
   RiAlertLine,
+  RiCalendarLine,
+  RiFileTextLine,
 } from "@remixicon/react"
+import {
+  getCurrentTermsVersion,
+  getTermsVersions,
+  getRecentTermsAcceptances,
+} from "@/features/admin/server/terms-service"
+import { TermsManagementCard } from "@/features/admin/components/terms-management-card"
 
 export const metadata: Metadata = {
   title: "Settings — Veyra Operations",
@@ -20,6 +30,13 @@ export const metadata: Metadata = {
 
 export default async function AdminSettingsPage() {
   const staff = await requireAdminStaff(["admin", "superadmin"])
+  const [rentalDurationConfig, currentTermsVersion, termsVersions, recentAcceptances] =
+    await Promise.all([
+      getRentalDurationConfig(),
+      getCurrentTermsVersion(),
+      getTermsVersions(),
+      getRecentTermsAcceptances(30),
+    ])
 
   const paymentsEnabled = process.env.PAYMENTS_ENABLED === "true"
   const ownerEmailConfigured = Boolean(process.env.VEYRA_OWNER_EMAIL)
@@ -152,6 +169,51 @@ export default async function AdminSettingsPage() {
             <li>• Deposit, base rental, extras, and taxes are separate line items in quotes</li>
           </ul>
         </div>
+      </section>
+
+      {/* Rental Duration Configuration */}
+      <section className="space-y-3">
+        <SectionHeader
+          title="Rental Duration Configuration"
+          badge={<RiCalendarLine className="size-4 text-muted-foreground" />}
+        />
+        <div className="rounded-lg border bg-card p-5 space-y-4">
+          <p className="text-xs text-muted-foreground">
+            Set the minimum and maximum number of days customers can rent a vehicle.
+            These limits are enforced server-side on every quote and reservation creation.
+            Existing reservations are not affected.
+          </p>
+          <div className="flex gap-6 text-xs">
+            <div>
+              <span className="text-muted-foreground">Current minimum:</span>{" "}
+              <span className="font-semibold">{rentalDurationConfig.minDays} day{rentalDurationConfig.minDays !== 1 ? "s" : ""}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Current maximum:</span>{" "}
+              <span className="font-semibold">
+                {rentalDurationConfig.maxDays ? `${rentalDurationConfig.maxDays} days` : "No limit"}
+              </span>
+            </div>
+          </div>
+          <RentalDurationSettingsForm
+            initialMinDays={rentalDurationConfig.minDays}
+            initialMaxDays={rentalDurationConfig.maxDays}
+          />
+        </div>
+      </section>
+
+      {/* Terms of Service Management */}
+      <section className="space-y-3">
+        <SectionHeader
+          title="Terms of Service & Customer Agreement"
+          badge={<RiFileTextLine className="size-4 text-muted-foreground" />}
+        />
+        <TermsManagementCard
+          currentVersion={currentTermsVersion}
+          versions={termsVersions}
+          recentAcceptances={recentAcceptances}
+          userRole={staff.role}
+        />
       </section>
 
       {/* Reservation system */}

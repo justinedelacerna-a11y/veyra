@@ -221,6 +221,21 @@ export function ReservationDetailView({ reservation }: ReservationDetailViewProp
                 </div>
                 <div className="text-muted-foreground font-medium">Butuan City, Agusan del Norte</div>
                 <div className="text-[11px] text-muted-foreground/80 mt-0.5">{reservation.pickupAddress}</div>
+                {reservation.pickupStreetAddress && (
+                  <div className="text-[11px] text-foreground font-medium mt-1 pt-1 border-t border-border/40">
+                    Handover Address: {reservation.pickupStreetAddress}
+                    {reservation.pickupLandmark && (
+                      <span className="block text-muted-foreground font-normal">
+                        Landmark: {reservation.pickupLandmark}
+                      </span>
+                    )}
+                    {reservation.pickupContactPhone && (
+                      <span className="block text-muted-foreground font-normal">
+                        Contact: {reservation.pickupContactPhone}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>

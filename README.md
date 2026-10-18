@@ -151,36 +151,36 @@ The application will be accessible at `http://localhost:3000`.
 
 ---
 
-## 7. Step-by-Step Capstone Demonstration Guide
+## 7. Capstone Presentation Guides & Runbooks
 
-### Part 1: Customer Booking Journey
-1. **Sign In**: Navigate to `http://localhost:3000/sign-in` and sign in with a demo Clerk account.
-2. **Browse Vehicles**: Visit `/vehicles`, filter by category (SUV, Sedan, Van), and select a vehicle (e.g., Toyota Corolla Cross Hybrid).
-3. **Select Itinerary**: Choose pickup and return dates. Manually adjust the duration (e.g., 3 days or 14 days) and observe return date and price synchronizing in real time.
-4. **Choose Location**: Select a Butuan City barangay (e.g., *Doongan* or *Libertad*) and enter a pickup landmark (e.g., *Near City Hall*).
-5. **Review Terms**: Read the Terms of Service and check the agreement checkbox.
-6. **Simulated Payment**: Select `GCash (Demo)`. On `/booking/demo-checkout`, click **Simulate Successful Payment**.
-7. **View Receipt**: Review the confirmed booking and open the demo receipt with the prominent `DEMO — NO REAL MONEY INVOLVED` watermark.
-8. **Customer History**: Visit `/account/payments` and `/account/reservations` to inspect the newly recorded transaction with its `DEMO` badge.
+For a comprehensive walkthrough of the capstone presentation and operations procedures:
 
-### Part 2: Failure Scenario & Retry
-1. Book another vehicle, select `Maya (Demo)` or `Card (Demo)`.
-2. On the demo checkout screen, select **Insufficient Wallet Balance (Demo)** and click **Simulate Failed Payment**.
-3. Note that the booking is preserved in `payment_failed` state without orphan charges.
-4. Click **Retry Payment**, select a different method, and simulate success.
+- 📖 **[Capstone Presentation Guide (10–15 Minutes)](docs/capstone-presentation-guide.md)**: Full step-by-step demonstration script covering Part A (Customer Booking), Part B (Demo Payment Simulation), and Part C (Admin Fleet Operations & Handover) with suggested speaking points.
+- 📋 **[Presentation Checklist & Runbook](docs/presentation-checklist.md)**: Technical pre-flight checklist, demo account references, troubleshooting, and emergency offline/local procedures.
 
-### Part 3: Operational Administration
-1. Sign in with the designated owner account (`VEYRA_OWNER_EMAIL`).
-2. Navigate to `/admin`.
-3. Open `/admin/payments`:
-   - Point out that **Total Captured Revenue** strictly excludes demo payments.
-   - Point out that **Simulated Payment Volume (Demo)** aggregates all demo transactions with purple `DEMO` tags.
-4. Open `/admin/customers` to inspect uploaded KYC documents using secure 5-minute signed URLs.
-5. Open `/admin/settings` to demonstrate admin control over minimum/maximum rental duration.
+### Summary Demonstration Sequence
+1. **Part 1 — Customer Booking Journey**:
+   - Browse authentic fleet photos across Butuan City hubs (`/vehicles`).
+   - Manually select duration (e.g., 3 to 7 days) and observe real-time price & return timestamp recalculation.
+   - Choose a verified Butuan City hub or custom street address with geospatial validation.
+   - Complete KYC driver's license check (proof of billing is optional) and accept Terms of Service (cryptographic IP hash).
+2. **Part 2 — Multi-Method Demo Payments**:
+   - Choose GCash, Maya, Card, or Bank Transfer demo checkout (`/booking/demo-checkout`).
+   - Simulate payment failure (e.g. insufficient funds) and demonstrate non-destructive self-service retry.
+   - Simulate successful payment and inspect the itemized demo receipt with the prominent `DEMO — NO REAL MONEY INVOLVED` watermark.
+   - Confirm reservation enters `pending_approval` for staff review (not auto-confirmed).
+3. **Part 3 — Back-Office Admin Fleet Operations**:
+   - Staff approves the booking in `/admin/reservations`.
+   - Staff records pre-trip inspection and clicks **Handover (Start Rental)**.
+   - Customer timeline refreshes to display **Active Rental — Current Stage**.
+   - Staff records vehicle return, finalizes inspection, releases security hold, and marks rental **Completed**.
+   - Inspect KYC document review portal and confirm demo transactions remain isolated from real revenue in `/admin/payments`.
 
 ---
 
 ## 8. Known Presentation Boundaries
 
-- Online checkout methods (GCash, Maya, Card, Bank Transfer) operate strictly in Demo Mode.
-- Live card processing and real webhooks remain disabled by default for student safety.
+- **Simulated Payments (By Design)**: Online checkout methods (GCash, Maya, Card, Bank Transfer) operate strictly in Demo Mode (`PAYMENTS_ENABLED=false`) for student defense safety.
+- **Geographic Scope**: Focused on Butuan City, Agusan del Norte with 8 active hubs and a 35 km operational delivery boundary.
+- **Data Safety**: All demo records are tagged with `is_demo: true` and excluded from real financial ledgers.
+

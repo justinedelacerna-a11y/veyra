@@ -458,7 +458,7 @@ export async function getCustomerReservations(): Promise<CustomerReservation[]> 
               title: "Booking Confirmed",
               date: isApproved ? "Confirmed" : "Pending",
               completed: isApproved,
-              current: !isCancelledOrRejected && row.status === "confirmed",
+              current: false,
               description: isApproved
                 ? "Vehicle assignment locked in fleet inventory."
                 : "Vehicle will be locked once staff completes review.",
@@ -470,10 +470,12 @@ export async function getCustomerReservations(): Promise<CustomerReservation[]> 
                 ? new Date(row.actual_pickup_at).toLocaleDateString("en-US", {
                     month: "short",
                     day: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
                   })
                 : `${pickupDateObj.toLocaleDateString("en-US", { month: "short", day: "numeric" })} • ${row.pickup_location?.name || "Butuan Operations Hub"}`,
               completed: isHandedOver,
-              current: !isCancelledOrRejected && row.status === "pickup_ready",
+              current: !isCancelledOrRejected && (row.status === "confirmed" || row.status === "pickup_ready"),
               description: row.actual_pickup_at
                 ? "Vehicle keys handed over to customer."
                 : "Vehicle inspection and key handover at designated hub.",
@@ -481,8 +483,13 @@ export async function getCustomerReservations(): Promise<CustomerReservation[]> 
             {
               step: "active" as const,
               title: "Active Rental",
-              date: row.actual_pickup_at ? "In Progress" : `${row.rental_days} Days Mobility`,
-              completed: isRentalCompleted,
+              date: row.actual_pickup_at
+                ? new Date(row.actual_pickup_at).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  })
+                : `${row.rental_days} Days Mobility`,
+              completed: isRentalCompleted || row.status === "return_inspection",
               current: !isCancelledOrRejected && row.status === "active",
               description:
                 row.status === "active"
@@ -496,6 +503,8 @@ export async function getCustomerReservations(): Promise<CustomerReservation[]> 
                 ? new Date(row.actual_return_at).toLocaleDateString("en-US", {
                     month: "short",
                     day: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
                   })
                 : returnDateObj.toLocaleDateString("en-US", {
                     month: "short",
@@ -503,12 +512,19 @@ export async function getCustomerReservations(): Promise<CustomerReservation[]> 
                   }),
               completed: isRentalCompleted,
               current: !isCancelledOrRejected && row.status === "return_inspection",
-              description: "Vehicle return inspection and security hold release.",
+              description: row.actual_return_at
+                ? "Vehicle returned and return inspection completed."
+                : "Vehicle return inspection and security hold release.",
             },
             {
               step: "completed" as const,
               title: "Rental Completed",
-              date: isRentalCompleted ? "Closed" : "Pending",
+              date: isRentalCompleted && row.actual_return_at
+                ? new Date(row.actual_return_at).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  })
+                : isRentalCompleted ? "Completed" : "Pending",
               completed: isRentalCompleted,
               current: false,
               description: isRentalCompleted

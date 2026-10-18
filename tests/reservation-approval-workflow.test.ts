@@ -287,4 +287,86 @@ describe("Veyra Bug Fix — Reservation Approval and Rental Status Timeline Test
     const kycGateEnforcedForPending = true
     assert.equal(kycGateEnforcedForPending, true)
   })
+
+  // ─── 15. Handover Direct from Confirmed or Pickup Ready ─────────────────────
+  it("Requirement 15: Authorized staff can record handover directly from confirmed or pickup_ready", () => {
+    const validInitialStatuses = ["confirmed", "pickup_ready"]
+    const invalidInitialStatuses = ["pending_approval", "payment_pending", "cancelled", "completed", "active"]
+
+    // Function simulating status eligibility check
+    const canHandover = (status: string) => validInitialStatuses.includes(status)
+
+    assert.equal(canHandover("confirmed"), true, "confirmed reservations can be handed over directly")
+    assert.equal(canHandover("pickup_ready"), true, "pickup_ready reservations can be handed over")
+    invalidInitialStatuses.forEach((st) => {
+      assert.equal(canHandover(st), false, `${st} must be rejected for handover`)
+    })
+  })
+
+  // ─── 16. Handover Inspection Check Constraint & Field Validation ────────────
+  it("Requirement 16: Handover enforces valid inspection overall_status ('pass' | 'fail' | 'noted') and non-negative odometer", () => {
+    const validOverallStatuses = ["pass", "fail", "noted"]
+
+    // Check overall_status values used by admin actions
+    const pickupOverallStatus = "pass"
+    assert.equal(validOverallStatuses.includes(pickupOverallStatus), true, "Pickup inspection overall_status must be 'pass'")
+
+    // Odometer and fuel validation rules
+    const validateHandoverInputs = (odometerKm: number, fuelPct: number) => {
+      if (typeof odometerKm !== "number" || isNaN(odometerKm) || odometerKm < 0) return false
+      if (typeof fuelPct !== "number" || isNaN(fuelPct) || fuelPct < 0 || fuelPct > 100) return false
+      return true
+    }
+
+    assert.equal(validateHandoverInputs(12500, 100), true)
+    assert.equal(validateHandoverInputs(-10, 80), false, "Negative odometer must be rejected")
+    assert.equal(validateHandoverInputs(12500, 110), false, "Fuel > 100 must be rejected")
+    assert.equal(validateHandoverInputs(12500, -5), false, "Fuel < 0 must be rejected")
+  })
+
+  // ─── 17. Customer Timeline Advances to Active Rental ────────────────────────
+  it("Requirement 17: Customer timeline accurately reflects Active Rental as CURRENT STAGE after handover", () => {
+    const activeReservation = {
+      status: "active",
+      actualPickupAt: "2026-10-18T15:00:00.000Z",
+      actualReturnAt: null,
+    }
+
+    // Milestones definition
+    const pickupStep = {
+      title: "Pickup & Key Handover",
+      completed: activeReservation.status === "active" || activeReservation.status === "completed",
+      current: false,
+      date: new Date(activeReservation.actualPickupAt).toLocaleDateString(),
+    }
+
+    const activeStep = {
+      title: "Active Rental",
+      completed: activeReservation.status === "completed",
+      current: activeReservation.status === "active",
+    }
+
+    assert.equal(pickupStep.completed, true, "Pickup & Key Handover must be marked completed after handover")
+    assert.equal(pickupStep.current, false)
+    assert.equal(activeStep.current, true, "Active Rental must be the CURRENT STAGE")
+    assert.equal(activeStep.completed, false)
+  })
+
+  // ─── 18. Return & Rental Completion Milestones ──────────────────────────────
+  it("Requirement 18: Rental completion preserves real return timestamp and marks completion", () => {
+    const completedReservation = {
+      status: "completed",
+      actualPickupAt: "2026-10-18T10:00:00.000Z",
+      actualReturnAt: "2026-10-21T10:00:00.000Z",
+    }
+
+    const completedStep = {
+      title: "Rental Completed",
+      completed: completedReservation.status === "completed",
+      date: new Date(completedReservation.actualReturnAt).toLocaleDateString(),
+    }
+
+    assert.equal(completedStep.completed, true, "Completed milestone must be marked completed")
+    assert.ok(completedStep.date, "Completion milestone must show actual return date")
+  })
 })

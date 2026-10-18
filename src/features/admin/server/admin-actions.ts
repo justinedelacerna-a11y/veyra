@@ -17,7 +17,7 @@ const ALLOWED_RESERVATION_TRANSITIONS: Record<AdminReservationStatus, AdminReser
   held: ["payment_pending", "expired", "cancelled"],
   payment_pending: ["pending_approval", "confirmed", "payment_failed", "cancelled"],
   pending_approval: ["confirmed", "cancelled"],
-  confirmed: ["pickup_ready", "cancelled"],
+  confirmed: ["pickup_ready", "active", "cancelled"],
   pickup_ready: ["active", "no_show", "cancelled"],
   active: ["return_inspection", "disputed"],
   return_inspection: ["completed", "disputed"],
@@ -430,7 +430,7 @@ export async function recordPickupHandoverAction(
 
     const supabase = createClient()
 
-    // 1. Fetch reservation — must be pickup_ready, and not already handed over
+    // 1. Fetch reservation — must be confirmed or pickup_ready, and not already handed over
     const { data: res, error: fetchErr } = await supabase
       .from("reservations")
       .select("id, reference, status, vehicle_id, actual_pickup_at")
@@ -441,10 +441,10 @@ export async function recordPickupHandoverAction(
       return { success: false, message: `Reservation not found: ${reservationId}`, error: "NOT_FOUND" }
     }
 
-    if (res.status !== "pickup_ready") {
+    if (res.status !== "confirmed" && res.status !== "pickup_ready") {
       return {
         success: false,
-        message: `Handover requires pickup_ready status. Current: ${res.status}`,
+        message: `Handover requires confirmed or pickup_ready status. Current: ${res.status}`,
         error: "CONFLICT",
       }
     }
@@ -453,19 +453,22 @@ export async function recordPickupHandoverAction(
     if (res.actual_pickup_at) {
       return {
         success: false,
-        message: "This reservation has already been handed over.",
+        message: "This reservation has already been handed over and is active.",
         error: "DUPLICATE",
       }
     }
 
     // 3. Validate odometer and fuel
-    if (input.odometerKm < 0 || input.fuelLevelPct < 0 || input.fuelLevelPct > 100) {
-      return { success: false, message: "Invalid odometer or fuel level values.", error: "INVALID_INPUT" }
+    if (typeof input.odometerKm !== "number" || isNaN(input.odometerKm) || input.odometerKm < 0) {
+      return { success: false, message: "Valid non-negative odometer reading is required.", error: "INVALID_INPUT" }
+    }
+    if (typeof input.fuelLevelPct !== "number" || isNaN(input.fuelLevelPct) || input.fuelLevelPct < 0 || input.fuelLevelPct > 100) {
+      return { success: false, message: "Fuel level must be between 0 and 100%.", error: "INVALID_INPUT" }
     }
 
     const now = new Date().toISOString()
 
-    // 4. Create pickup inspection record
+    // 4. Create pickup inspection record (overall_status must satisfy check constraint: 'pass' | 'fail' | 'noted')
     const { data: inspection, error: inspErr } = await supabase
       .from("inspections")
       .insert({
@@ -477,7 +480,7 @@ export async function recordPickupHandoverAction(
         fuel_level_pct: input.fuelLevelPct,
         customer_present: input.customerPresent,
         customer_signature: false,
-        overall_status: "cleared",
+        overall_status: "pass",
         damage_status: "no_damage",
         notes: input.notes || null,
         completed_at: now,
@@ -490,8 +493,8 @@ export async function recordPickupHandoverAction(
       return { success: false, message: `Failed to create pickup inspection: ${inspErr?.message}`, error: inspErr?.message }
     }
 
-    // 5. Transition reservation → active, stamp actual_pickup_at
-    const { error: resErr } = await supabase
+    // 5. Transition reservation → active, stamp actual_pickup_at with optimistic concurrency check
+    const { data: updatedRows, error: resErr } = await supabase
       .from("reservations")
       .update({
         status: "active",
@@ -499,10 +502,20 @@ export async function recordPickupHandoverAction(
         updated_at: now,
       })
       .eq("id", reservationId)
+      .eq("status", res.status)
+      .select("id")
 
     if (resErr) {
       console.error("[recordPickupHandoverAction] Reservation update error:", resErr)
       return { success: false, message: `Failed to activate reservation: ${resErr.message}`, error: resErr.message }
+    }
+
+    if (!updatedRows || updatedRows.length === 0) {
+      return {
+        success: false,
+        message: "Reservation status has changed or was modified by another user.",
+        error: "CONCURRENCY_CONFLICT",
+      }
     }
 
     // 6. Update vehicle fleet status → rented
@@ -520,7 +533,7 @@ export async function recordPickupHandoverAction(
       resourceId: reservationId,
       result: "success",
       details: `Reservation ${res.reference || reservationId} handed over to customer. Odometer: ${input.odometerKm} km, Fuel: ${input.fuelLevelPct}%. Inspection: ${inspection.id}`,
-      beforeState: { status: "pickup_ready" },
+      beforeState: { status: res.status },
       afterState: { status: "active", actual_pickup_at: now, inspection_id: inspection.id },
     })
 
@@ -529,6 +542,12 @@ export async function recordPickupHandoverAction(
     revalidatePath(`/admin/reservations/${reservationId}`)
     revalidatePath("/admin/inspections")
     revalidatePath("/admin/fleet")
+    revalidatePath("/account/reservations")
+    revalidatePath(`/account/reservations/${reservationId}`)
+    if (res.reference) {
+      revalidatePath(`/account/reservations/${res.reference}`)
+    }
+    revalidatePath("/vehicles")
 
     return {
       success: true,
@@ -632,7 +651,8 @@ export async function recordVehicleReturnAction(
 
     const now = new Date().toISOString()
 
-    // 5. Create return inspection
+    // 5. Create return inspection (overall_status: 'pass' | 'fail' | 'noted')
+    const returnOverallStatus = input.damageStatus === "new_damage" ? "fail" : input.damageStatus === "existing_noted" ? "noted" : "pass"
     const { data: inspection, error: inspErr } = await supabase
       .from("inspections")
       .insert({
@@ -644,7 +664,7 @@ export async function recordVehicleReturnAction(
         fuel_level_pct: input.fuelLevelPct,
         customer_present: false,
         customer_signature: false,
-        overall_status: input.damageStatus === "new_damage" ? "flagged" : "cleared",
+        overall_status: returnOverallStatus,
         damage_status: input.damageStatus,
         notes: input.notes || null,
         completed_at: now,
@@ -657,8 +677,8 @@ export async function recordVehicleReturnAction(
       return { success: false, message: `Failed to create return inspection: ${inspErr?.message}`, error: inspErr?.message }
     }
 
-    // 6. Transition reservation → return_inspection, stamp actual_return_at
-    const { error: resErr } = await supabase
+    // 6. Transition reservation → return_inspection, stamp actual_return_at with concurrency check
+    const { data: updatedRows, error: resErr } = await supabase
       .from("reservations")
       .update({
         status: "return_inspection",
@@ -666,10 +686,20 @@ export async function recordVehicleReturnAction(
         updated_at: now,
       })
       .eq("id", reservationId)
+      .eq("status", "active")
+      .select("id")
 
     if (resErr) {
       console.error("[recordVehicleReturnAction] Reservation update error:", resErr)
       return { success: false, message: `Failed to update reservation: ${resErr.message}`, error: resErr.message }
+    }
+
+    if (!updatedRows || updatedRows.length === 0) {
+      return {
+        success: false,
+        message: "Reservation status has changed or was modified by another user.",
+        error: "CONCURRENCY_CONFLICT",
+      }
     }
 
     // 7. Update vehicle fleet status → inspection
@@ -696,6 +726,11 @@ export async function recordVehicleReturnAction(
     revalidatePath(`/admin/reservations/${reservationId}`)
     revalidatePath("/admin/inspections")
     revalidatePath("/admin/fleet")
+    revalidatePath("/account/reservations")
+    revalidatePath(`/account/reservations/${reservationId}`)
+    if (res.reference) {
+      revalidatePath(`/account/reservations/${res.reference}`)
+    }
 
     return {
       success: true,
@@ -756,23 +791,33 @@ export async function completeRentalAction(
 
     const now = new Date().toISOString()
 
-    // Update return inspection overall_status to cleared if completing from return_inspection
+    // Update return inspection overall_status to pass if completing from return_inspection
     if (res.status === "return_inspection") {
       await supabase
         .from("inspections")
-        .update({ overall_status: "cleared" })
+        .update({ overall_status: "pass" })
         .eq("reservation_id", reservationId)
         .eq("type", "return")
     }
 
-    // Transition → completed
-    const { error: resErr } = await supabase
+    // Transition → completed with concurrency check
+    const { data: updatedRows, error: resErr } = await supabase
       .from("reservations")
       .update({ status: "completed", updated_at: now })
       .eq("id", reservationId)
+      .eq("status", res.status)
+      .select("id")
 
     if (resErr) {
       return { success: false, message: `Failed to complete reservation: ${resErr.message}`, error: resErr.message }
+    }
+
+    if (!updatedRows || updatedRows.length === 0) {
+      return {
+        success: false,
+        message: "Reservation status has changed or was modified by another user.",
+        error: "CONCURRENCY_CONFLICT",
+      }
     }
 
     // Release vehicle → available
@@ -800,6 +845,11 @@ export async function completeRentalAction(
     revalidatePath("/admin/inspections")
     revalidatePath("/admin/fleet")
     revalidatePath("/account/reservations")
+    revalidatePath(`/account/reservations/${reservationId}`)
+    if (res.reference) {
+      revalidatePath(`/account/reservations/${res.reference}`)
+    }
+    revalidatePath("/vehicles")
 
     return { success: true, message: `Rental ${res.reference || reservationId} completed. Vehicle is available.` }
   } catch (err) {
@@ -944,10 +994,10 @@ export async function flagDisputeAction(
 
     const now = new Date().toISOString()
 
-    // Update return inspection to flagged
+    // Update return inspection to fail (valid check constraint)
     await supabase
       .from("inspections")
-      .update({ overall_status: "flagged", damage_status: "needs_review" })
+      .update({ overall_status: "fail", damage_status: "needs_review" })
       .eq("reservation_id", reservationId)
       .eq("type", "return")
 

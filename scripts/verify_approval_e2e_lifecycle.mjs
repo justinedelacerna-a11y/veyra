@@ -246,9 +246,30 @@ async function runEndToEndVerification() {
     assert.equal(prErr, null, `Pickup ready update failed: ${prErr?.message}`)
     console.log("  [PASS] Reservation moved to pickup_ready.")
 
-    // 8. Vehicle Handover: pickup_ready -> active
-    console.log("8. Recording vehicle handover (pickup_ready -> active)...")
+    // 8. Vehicle Handover: confirmed/pickup_ready -> active + pickup inspection
+    console.log("8. Recording vehicle handover and pre-trip inspection...")
     const actualPickupAt = new Date().toISOString()
+    const { data: pickupInsp, error: pInspErr } = await supabase
+      .from("inspections")
+      .insert({
+        reservation_id: reservation.id,
+        vehicle_id: vehicle.id,
+        type: "pickup",
+        inspector_id: adminUser.user_id,
+        odometer_km: 12500,
+        fuel_level_pct: 100,
+        customer_present: true,
+        customer_signature: false,
+        overall_status: "pass",
+        damage_status: "no_damage",
+        completed_at: actualPickupAt,
+      })
+      .select("id")
+      .single()
+
+    assert.equal(pInspErr, null, `Pickup inspection failed: ${pInspErr?.message}`)
+    console.log(`  [PASS] Pickup inspection inserted: ID=${pickupInsp.id}, overall_status='pass'`)
+
     const { error: hoErr } = await supabase
       .from("reservations")
       .update({
@@ -257,17 +278,39 @@ async function runEndToEndVerification() {
         updated_at: actualPickupAt,
       })
       .eq("id", reservation.id)
-      .eq("status", "pickup_ready")
     assert.equal(hoErr, null, `Handover update failed: ${hoErr?.message}`)
     console.log(`  [PASS] Vehicle handed over. Status='active', actual_pickup_at=${actualPickupAt}`)
 
-    // 9. Return & Inspection: active -> return_inspection
+    // 9. Return & Inspection: active -> return_inspection + return inspection
     console.log("9. Recording vehicle return for inspection (active -> return_inspection)...")
+    const actualReturnAt = new Date().toISOString()
+    const { data: returnInsp, error: rInspErr } = await supabase
+      .from("inspections")
+      .insert({
+        reservation_id: reservation.id,
+        vehicle_id: vehicle.id,
+        type: "return",
+        inspector_id: adminUser.user_id,
+        odometer_km: 12850,
+        fuel_level_pct: 95,
+        customer_present: false,
+        customer_signature: false,
+        overall_status: "pass",
+        damage_status: "no_damage",
+        completed_at: actualReturnAt,
+      })
+      .select("id")
+      .single()
+
+    assert.equal(rInspErr, null, `Return inspection failed: ${rInspErr?.message}`)
+    console.log(`  [PASS] Return inspection inserted: ID=${returnInsp.id}, overall_status='pass'`)
+
     const { error: retErr } = await supabase
       .from("reservations")
       .update({
         status: "return_inspection",
-        updated_at: new Date().toISOString(),
+        actual_return_at: actualReturnAt,
+        updated_at: actualReturnAt,
       })
       .eq("id", reservation.id)
       .eq("status", "active")
@@ -276,12 +319,10 @@ async function runEndToEndVerification() {
 
     // 10. Inspection Completed: return_inspection -> completed
     console.log("10. Finalizing return inspection and completing rental (return_inspection -> completed)...")
-    const actualReturnAt = new Date().toISOString()
     const { error: compErr } = await supabase
       .from("reservations")
       .update({
         status: "completed",
-        actual_return_at: actualReturnAt,
         updated_at: actualReturnAt,
       })
       .eq("id", reservation.id)
@@ -462,6 +503,7 @@ async function runEndToEndVerification() {
     if (disposableIds.length > 0) {
       console.log(`\nCleaning up ${disposableIds.length} disposable test reservation(s)...`)
       for (const id of disposableIds) {
+        await supabase.from("inspections").delete().eq("reservation_id", id)
         await supabase.from("payments").delete().eq("reservation_id", id)
         await supabase.from("reservations").delete().eq("id", id)
       }

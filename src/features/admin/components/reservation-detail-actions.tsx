@@ -80,20 +80,25 @@ export function AdminReservationDetailActions({
   // Rejection reason
   const [rejectionReason, setRejectionReason] = React.useState("")
 
+  // Dialog specific errors
+  const [handoverError, setHandoverError] = React.useState<string | null>(null)
+  const [returnError, setReturnError] = React.useState<string | null>(null)
+
   const showFeedback = (text: string, error?: boolean) => {
     setFeedback({ text, error })
     setTimeout(() => setFeedback(null), 5000)
   }
 
   const handlePickupHandover = async () => {
+    setHandoverError(null)
     const odometerKm = parseInt(handoverOdometer, 10)
     const fuelLevelPct = parseInt(handoverFuel, 10)
     if (isNaN(odometerKm) || odometerKm < 0) {
-      showFeedback("Please enter a valid odometer reading.", true)
+      setHandoverError("Please enter a valid non-negative odometer reading.")
       return
     }
     if (isNaN(fuelLevelPct) || fuelLevelPct < 0 || fuelLevelPct > 100) {
-      showFeedback("Fuel level must be between 0 and 100.", true)
+      setHandoverError("Fuel level must be between 0 and 100%.")
       return
     }
     setIsPending(true)
@@ -107,26 +112,31 @@ export function AdminReservationDetailActions({
       if (res.success) {
         showFeedback(res.message)
         setActiveDialog(null)
+        setHandoverError(null)
         router.refresh()
       } else {
+        setHandoverError(res.message || "Handover failed.")
         showFeedback(res.message || "Handover failed.", true)
       }
-    } catch {
-      showFeedback("An unexpected error occurred.", true)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "An unexpected error occurred."
+      setHandoverError(msg)
+      showFeedback(msg, true)
     } finally {
       setIsPending(false)
     }
   }
 
   const handleVehicleReturn = async () => {
+    setReturnError(null)
     const odometerKm = parseInt(returnOdometer, 10)
     const fuelLevelPct = parseInt(returnFuel, 10)
     if (isNaN(odometerKm) || odometerKm < 0) {
-      showFeedback("Please enter a valid odometer reading.", true)
+      setReturnError("Please enter a valid non-negative odometer reading.")
       return
     }
     if (isNaN(fuelLevelPct) || fuelLevelPct < 0 || fuelLevelPct > 100) {
-      showFeedback("Fuel level must be between 0 and 100.", true)
+      setReturnError("Fuel level must be between 0 and 100%.")
       return
     }
     setIsPending(true)
@@ -140,12 +150,16 @@ export function AdminReservationDetailActions({
       if (res.success) {
         showFeedback(res.message)
         setActiveDialog(null)
+        setReturnError(null)
         router.refresh()
       } else {
+        setReturnError(res.message || "Return recording failed.")
         showFeedback(res.message || "Return recording failed.", true)
       }
-    } catch {
-      showFeedback("An unexpected error occurred.", true)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "An unexpected error occurred."
+      setReturnError(msg)
+      showFeedback(msg, true)
     } finally {
       setIsPending(false)
     }
@@ -232,29 +246,47 @@ export function AdminReservationDetailActions({
         </Button>
       )}
 
-      {/* confirmed → Pickup Ready */}
+      {/* confirmed → Handover directly OR Mark Pickup Ready */}
       {status === "confirmed" && (
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={isPending}
-          onClick={() => setActiveDialog("pickup_ready")}
-          className="gap-1.5"
-        >
-          {isPending ? <RiLoader4Line className="size-4 animate-spin" /> : <RiCarLine className="size-4" />}
-          <span>Mark Pickup Ready</span>
-        </Button>
-      )}
-
-      {/* pickup_ready → Handover or No-Show */}
-      {status === "pickup_ready" && (
-        <>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="default"
+            disabled={isPending}
+            onClick={() => {
+              setHandoverError(null)
+              setActiveDialog("pickup_handover")
+            }}
+            className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-xs"
+          >
+            {isPending ? <RiLoader4Line className="size-4 animate-spin" /> : <RiKeyLine className="size-4" />}
+            <span>Handover (Start Rental)</span>
+          </Button>
           <Button
             size="sm"
             variant="outline"
             disabled={isPending}
-            onClick={() => setActiveDialog("pickup_handover")}
-            className="gap-1.5 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10"
+            onClick={() => setActiveDialog("pickup_ready")}
+            className="gap-1.5"
+          >
+            {isPending ? <RiLoader4Line className="size-4 animate-spin" /> : <RiCarLine className="size-4" />}
+            <span>Mark Pickup Ready</span>
+          </Button>
+        </div>
+      )}
+
+      {/* pickup_ready → Handover or No-Show */}
+      {status === "pickup_ready" && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="default"
+            disabled={isPending}
+            onClick={() => {
+              setHandoverError(null)
+              setActiveDialog("pickup_handover")
+            }}
+            className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-xs"
           >
             {isPending ? <RiLoader4Line className="size-4 animate-spin" /> : <RiKeyLine className="size-4" />}
             <span>Handover (Start Rental)</span>
@@ -269,7 +301,7 @@ export function AdminReservationDetailActions({
             {isPending ? <RiLoader4Line className="size-4 animate-spin" /> : <RiUserUnfollowLine className="size-4" />}
             <span>Mark No-Show</span>
           </Button>
-        </>
+        </div>
       )}
 
       {/* active → Record Return */}
@@ -648,6 +680,13 @@ export function AdminReservationDetailActions({
                 className="text-sm resize-none"
               />
             </div>
+
+            {handoverError && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive flex items-center gap-2">
+                <RiAlertLine className="size-4 shrink-0" />
+                <span>{handoverError}</span>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
@@ -658,7 +697,7 @@ export function AdminReservationDetailActions({
               size="sm"
               onClick={handlePickupHandover}
               disabled={isPending || !handoverOdometer}
-              className="gap-1.5"
+              className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
             >
               {isPending && <RiLoader4Line className="size-4 animate-spin" />}
               {isPending ? "Processing Handover…" : "Confirm Handover"}
@@ -766,6 +805,13 @@ export function AdminReservationDetailActions({
             {returnDamageStatus === "new_damage" && (
               <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
                 New damage recorded — reservation moves to return inspection phase. Use &quot;Flag Dispute&quot; to escalate.
+              </div>
+            )}
+
+            {returnError && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive flex items-center gap-2">
+                <RiAlertLine className="size-4 shrink-0" />
+                <span>{returnError}</span>
               </div>
             )}
           </div>

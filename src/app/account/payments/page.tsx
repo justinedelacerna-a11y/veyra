@@ -3,7 +3,7 @@ import { Metadata } from "next"
 import Link from "next/link"
 import { getCustomerPayments } from "@/features/account/server"
 import { getAvailablePaymentMethods, isPaymentGatewayConfigured } from "@/features/payment/server"
-import { StatusBadge, StatusType } from "@/components/common/status-badge"
+import { CustomerPaymentsList } from "./payments-list"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import {
@@ -22,41 +22,13 @@ export const metadata: Metadata = {
   description: "View available payment methods and live transaction records.",
 }
 
-const STATUS_BADGE_MAP: Record<string, { badge: StatusType; label: string }> = {
-  pending: { badge: "pending", label: "Pending Settlement" },
-  authorized: { badge: "info", label: "Authorized Hold" },
-  captured: { badge: "success", label: "Paid & Captured" },
-  paid: { badge: "success", label: "Paid" },
-  failed: { badge: "error", label: "Payment Failed" },
-  refunded: { badge: "neutral", label: "Refunded" },
-  partially_refunded: { badge: "warning", label: "Partially Refunded" },
-}
-
 export default async function CustomerPaymentsPage() {
   const [payments, methods] = await Promise.all([
     getCustomerPayments(),
-    Promise.resolve(getAvailablePaymentMethods()),
+    Promise.resolve(getAvailablePaymentMethods({ demo: true })),
   ])
 
   const gatewayOnline = isPaymentGatewayConfigured()
-
-  const formatMethodLabel = (method: string) => {
-    switch (method) {
-      case "counter":
-      case "pay_at_pickup":
-        return "Pay at Pickup"
-      case "card":
-        return "Credit / Debit Card"
-      case "gcash":
-        return "GCash E-Wallet"
-      case "maya":
-        return "Maya E-Wallet"
-      case "e_wallet":
-        return "Digital E-Wallet"
-      default:
-        return method.toUpperCase()
-    }
-  }
 
   return (
     <div className="space-y-8">
@@ -137,10 +109,10 @@ export default async function CustomerPaymentsPage() {
         <Alert className="border-border bg-muted/30">
           <RiShieldCheckLine className="size-4 text-emerald-600 dark:text-emerald-400" />
           <AlertTitle className="text-xs font-bold text-foreground">
-            Bank-Grade Payment Security
+            Capstone Demonstration Architecture
           </AlertTitle>
           <AlertDescription className="text-xs text-muted-foreground">
-            Veyra never stores full credit/debit card numbers, CVVs, or wallet credentials on our servers. All digital transactions are tokenized via hosted checkout gateways complying with PCI-DSS standards.
+            All digital payment channels operate in simulation mode. No live credit cards, bank credentials, or mobile wallets are charged real money. Transactions are stored with demo markers and auditable simulation records.
           </AlertDescription>
         </Alert>
       </section>
@@ -162,75 +134,9 @@ export default async function CustomerPaymentsPage() {
           </Link>
         </div>
 
-        {payments.length === 0 ? (
-          <div className="rounded-xl border border-dashed bg-card/40 p-8 text-center space-y-3">
-            <RiBankCardLine className="size-8 mx-auto text-muted-foreground" />
-            <h3 className="font-heading text-sm font-semibold">No Payment Records Found</h3>
-            <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-              Transactions and receipts will appear here automatically when you complete rental reservations.
-            </p>
-            <Link href="/booking">
-              <Button size="sm" className="mt-1 text-xs">Book a Vehicle</Button>
-            </Link>
-          </div>
-        ) : (
-          <div className="rounded-xl border bg-card divide-y overflow-hidden shadow-xs">
-            {payments.map((p) => {
-              const statusCfg = STATUS_BADGE_MAP[p.status] || {
-                badge: "neutral" as StatusType,
-                label: p.status,
-              }
-              const dateDisplay = new Date(p.createdAt).toLocaleDateString("en-US", {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-              })
-
-              return (
-                <div
-                  key={p.id}
-                  className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-                >
-                  <div className="space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-xs font-bold text-primary">
-                        {p.reservationReference}
-                      </span>
-                      <StatusBadge
-                        status={statusCfg.badge}
-                        label={statusCfg.label}
-                        size="sm"
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Method: {formatMethodLabel(p.method)}
-                      {p.providerTxnRef ? ` · Ref: ${p.providerTxnRef}` : ""}
-                      {p.failureReason ? ` · Note: ${p.failureReason}` : ""}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center justify-between sm:justify-end gap-5 shrink-0">
-                    <div className="text-left sm:text-right">
-                      <span className="font-heading text-base font-bold text-foreground block">
-                        ₱{p.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </span>
-                      <span className="text-[11px] text-muted-foreground">
-                        {dateDisplay}
-                      </span>
-                    </div>
-
-                    <Link href={`/account/reservations`}>
-                      <Button variant="outline" size="sm" className="h-8 text-xs">
-                        Itinerary
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
+        <CustomerPaymentsList payments={payments} />
       </section>
     </div>
   )
 }
+

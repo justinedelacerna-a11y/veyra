@@ -126,6 +126,7 @@ export interface PaymentRecord {
   transactionRef: string
   createdAt: string
   updatedAt: string
+  isDemo: boolean
   refundedAmount?: number
   refundReason?: string
   notes?: string

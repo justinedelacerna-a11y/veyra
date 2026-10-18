@@ -289,6 +289,7 @@ export function PaymentStep() {
             .filter((m) => m.enabled)
             .map((method) => {
               const isSelected = paymentChoice === method.id
+              const isDemo = method.type === "demo" || method.isDemo
               return (
                 <div
                   key={method.id}
@@ -304,7 +305,14 @@ export function PaymentStep() {
                     <div className="flex items-center gap-2">
                       {renderMethodIcon(method.iconName)}
                       {method.badge && (
-                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                        <span
+                          className={cn(
+                            "text-[10px] font-semibold px-2 py-0.5 rounded-full",
+                            isDemo
+                              ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30"
+                              : "bg-primary/10 text-primary"
+                          )}
+                        >
                           {method.badge}
                         </span>
                       )}
@@ -331,18 +339,31 @@ export function PaymentStep() {
             })}
         </div>
 
-        {!gatewayOnline && (
+        {selectedMethod?.type === "demo" && (
+          <Alert className="border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300">
+            <RiShieldCheckLine className="size-4 text-amber-600 dark:text-amber-400" />
+            <AlertTitle className="text-xs font-bold">
+              DEMO MODE — NO REAL MONEY INVOLVED
+            </AlertTitle>
+            <AlertDescription className="text-xs text-amber-700/90 dark:text-amber-300/80">
+              You selected {selectedMethod.label}. This transaction will run in simulation mode for capstone evaluation. You will be able to simulate success, failure, and cancellation without real money or financial credentials.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {!gatewayOnline && selectedMethod?.type === "manual" && (
           <Alert className="border-border bg-muted/30">
             <RiInformationLine className="size-4 text-muted-foreground" />
             <AlertTitle className="text-xs font-bold text-foreground">
               Pay at Pickup Settlement
             </AlertTitle>
             <AlertDescription className="text-xs text-muted-foreground">
-              Online credit card and e-wallet checkout channels are currently deactivated in this environment. Your reservation will be confirmed immediately with payment status set to pending. Settle in person via cash or card POS terminal at vehicle handover.
+              Your reservation will be confirmed immediately with payment status set to pending. Settle in person via cash or card POS terminal upon vehicle handover at the valet bay or branch.
             </AlertDescription>
           </Alert>
         )}
       </div>
+
 
       {/* Terms & Policies Checkboxes */}
       <div className="space-y-3 rounded-2xl border bg-card/60 p-5 shadow-xs">
@@ -451,7 +472,7 @@ export function PaymentStep() {
                 ? "Processing..."
                 : selectedMethod?.type === "manual"
                 ? `Confirm Reservation • Pay at Handover (₱${pricing.totalRentalPrice.toLocaleString()})`
-                : `Pay Securely with ${selectedMethod?.label || "Online Gateway"} (₱${pricing.totalRentalPrice.toLocaleString()})`}
+                : `Proceed to ${selectedMethod?.label || "Demo"} Simulator (₱${pricing.totalRentalPrice.toLocaleString()})`}
             </span>
             <RiArrowRightLine className="size-4" data-icon="inline-end" />
           </Button>

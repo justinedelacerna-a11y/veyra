@@ -827,6 +827,7 @@ export type Database = {
           failure_reason: string | null
           id: string
           idempotency_key: string | null
+          is_demo: boolean
           method: string | null
           notes: string | null
           provider: string | null
@@ -845,6 +846,7 @@ export type Database = {
           failure_reason?: string | null
           id?: string
           idempotency_key?: string | null
+          is_demo?: boolean
           method?: string | null
           notes?: string | null
           provider?: string | null
@@ -863,6 +865,7 @@ export type Database = {
           failure_reason?: string | null
           id?: string
           idempotency_key?: string | null
+          is_demo?: boolean
           method?: string | null
           notes?: string | null
           provider?: string | null

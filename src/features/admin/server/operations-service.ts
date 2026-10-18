@@ -215,6 +215,7 @@ interface RawPaymentRow {
   provider?: string | null
   provider_txn_ref?: string | null
   notes?: string | null
+  is_demo?: boolean | null
   created_at: string
   updated_at: string
   customers?: {
@@ -241,6 +242,7 @@ export async function getAdminPaymentsList(): Promise<PaymentRecord[]> {
       provider,
       provider_txn_ref,
       notes,
+      is_demo,
       created_at,
       updated_at,
       customers (
@@ -275,7 +277,9 @@ export async function getAdminPaymentsList(): Promise<PaymentRecord[]> {
       transactionRef: p.provider_txn_ref || p.id.slice(0, 10).toUpperCase(),
       createdAt: p.created_at,
       updatedAt: p.updated_at,
+      isDemo: Boolean(p.is_demo),
       notes: p.notes || undefined,
     }
   })
 }
+

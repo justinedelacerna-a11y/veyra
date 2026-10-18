@@ -16,7 +16,7 @@ export interface CreateReservationParams {
   selectedExtraIds?: string[]
   quoteId?: string
   driver: DriverDetails
-  paymentMethod?: "card" | "e-wallet" | "counter"
+  paymentMethod?: "card" | "e-wallet" | "counter" | "pay_at_pickup" | "gcash" | "maya" | "bank_transfer" | "online"
   initialStatus?: "held" | "confirmed"
   pickupBarangay?: string
   pickupStreetAddress?: string
@@ -362,10 +362,17 @@ export async function createReservation(
       }))
     }
 
-    // 6. Map payment method to database CHECK constraint enum
-    let dbPaymentMethod: "card" | "e_wallet" | "counter" = "card"
-    if (params.paymentMethod === "e-wallet") dbPaymentMethod = "e_wallet"
-    else if (params.paymentMethod === "counter") dbPaymentMethod = "counter"
+    // 6. Map payment method to database CHECK constraint enum ('card' | 'e_wallet' | 'counter' | 'bank_transfer')
+    let dbPaymentMethod: "card" | "e_wallet" | "counter" | "bank_transfer" = "card"
+    if (params.paymentMethod === "e-wallet" || params.paymentMethod === "gcash" || params.paymentMethod === "maya") {
+      dbPaymentMethod = "e_wallet"
+    } else if (params.paymentMethod === "counter" || params.paymentMethod === "pay_at_pickup") {
+      dbPaymentMethod = "counter"
+    } else if (params.paymentMethod === "bank_transfer") {
+      dbPaymentMethod = "bank_transfer"
+    } else {
+      dbPaymentMethod = "card"
+    }
 
     // 7. Generate unique reservation reference
     let reference = generateBookingReference()
@@ -392,9 +399,8 @@ export async function createReservation(
 
     const targetStatus =
       params.initialStatus ||
-      (process.env.PAYMENTS_ENABLED === "true" && dbPaymentMethod !== "counter"
-        ? "held"
-        : "confirmed")
+      (dbPaymentMethod === "counter" ? "confirmed" : "payment_pending")
+
 
     // 7b. Server-Side KYC Gate: If finalizing a confirmed booking, enforce customer verification
     if (targetStatus === "confirmed") {

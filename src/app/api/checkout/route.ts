@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
-import { createCheckoutSession } from "@/features/payment/server"
+import { getPaymentProvider } from "@/features/payment/server"
+import type { PaymentMethodId } from "@/features/payment/types"
 import { checkRateLimit, RATE_LIMITS } from "@/lib/rate-limit"
 
 /**
  * POST /api/checkout
  *
- * Initiates an authoritative PayMongo checkout session for an unpaid reservation.
+ * Initiates an authoritative checkout session for an unpaid reservation.
+ * In demo mode, routes through DemoPaymentProvider without contacting external gateways.
  *
  * Security:
  * - Customer must be authenticated via Clerk.
  * - Server receives ONLY the reservationId and paymentMethod.
- * - Amount and currency are loaded exclusively from the server-side quote snapshot.
+ * - Amount and currency are loaded exclusively from server-side database records.
  * - Client cannot tamper with prices, fees, taxes, deposits, or totals.
  */
 export async function POST(request: NextRequest) {
@@ -62,10 +64,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const result = await createCheckoutSession({
+    const provider = getPaymentProvider(paymentMethod as PaymentMethodId, { demo: true })
+    const result = await provider.createPayment({
       reservationId,
       clerkUserId,
-      paymentMethod,
+      paymentMethod: paymentMethod as PaymentMethodId,
     })
 
     if (!result.success) {
@@ -81,7 +84,7 @@ export async function POST(request: NextRequest) {
         provider_error: 502,
         database_error: 500,
       }
-      const statusCode = statusMap[result.error] || 400
+      const statusCode = statusMap[result.error || ""] || 400
 
       return NextResponse.json(
         {
@@ -100,6 +103,7 @@ export async function POST(request: NextRequest) {
       reference: result.reference,
       amountCentavos: result.totalAmountCentavos,
       currency: result.currency,
+      isDemo: result.isDemo ?? true,
     })
   } catch (err) {
     console.error("[api/checkout] Unhandled error:", err)
@@ -113,3 +117,4 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+

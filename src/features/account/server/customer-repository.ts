@@ -490,6 +490,11 @@ export interface CustomerPaymentRecord {
   providerTxnRef: string | null
   failureReason: string | null
   createdAt: string
+  isDemo: boolean
+  vehicleName?: string
+  rentalDays?: number
+  pickupAt?: string
+  returnAt?: string
 }
 
 /**
@@ -506,7 +511,7 @@ export async function getCustomerPayments(): Promise<CustomerPaymentRecord[]> {
     const supabase = createServiceClient()
     const { data, error } = await supabase
       .from("payments")
-      .select("id, reservation_id, amount, currency, status, method, provider, provider_payment_id, provider_txn_ref, failure_reason, created_at, reservations(reference)")
+      .select("id, reservation_id, amount, currency, status, method, provider, provider_payment_id, provider_txn_ref, failure_reason, created_at, is_demo, reservations(reference, rental_days, pickup_at, return_at, vehicles(make, model, year))")
       .eq("customer_id", customer.id)
       .order("created_at", { ascending: false })
 
@@ -516,8 +521,16 @@ export async function getCustomerPayments(): Promise<CustomerPaymentRecord[]> {
     }
 
     return data.map((p) => {
-      const resObj = Array.isArray(p.reservations) ? p.reservations[0] : p.reservations
-      const ref = (resObj as { reference?: string } | null)?.reference || "VYR-RESERVATION"
+      const resObj = (Array.isArray(p.reservations) ? p.reservations[0] : p.reservations) as {
+        reference?: string
+        rental_days?: number
+        pickup_at?: string
+        return_at?: string
+        vehicles?: { make?: string; model?: string; year?: number } | { make?: string; model?: string; year?: number }[] | null
+      } | null
+      const ref = resObj?.reference || "VYR-RESERVATION"
+      const vehicle = Array.isArray(resObj?.vehicles) ? resObj?.vehicles[0] : resObj?.vehicles
+      const vehicleName = vehicle?.make ? `${vehicle.year || ""} ${vehicle.make} ${vehicle.model}`.trim() : undefined
 
       return {
         id: p.id,
@@ -532,6 +545,11 @@ export async function getCustomerPayments(): Promise<CustomerPaymentRecord[]> {
         providerTxnRef: p.provider_txn_ref,
         failureReason: p.failure_reason,
         createdAt: p.created_at,
+        isDemo: Boolean(p.is_demo),
+        vehicleName,
+        rentalDays: resObj?.rental_days || undefined,
+        pickupAt: resObj?.pickup_at || undefined,
+        returnAt: resObj?.return_at || undefined,
       }
     })
   } catch (err) {

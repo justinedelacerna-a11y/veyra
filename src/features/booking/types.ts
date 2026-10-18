@@ -68,7 +68,7 @@ export interface PersistedBookingContext {
   returnDate: string
   returnTime: string
   selectedExtras: string[]
-  paymentMethod?: "card" | "e-wallet" | "counter" | "pay_at_pickup" | "gcash" | "maya" | "online"
+  paymentMethod?: "card" | "e-wallet" | "counter" | "pay_at_pickup" | "gcash" | "maya" | "bank_transfer" | "online"
   agreedToTerms?: boolean
   agreedToCancellation?: boolean
   bookingReference?: string
@@ -85,7 +85,7 @@ export interface PersistedBookingContext {
  */
 export interface BookingDraft extends PersistedBookingContext {
   driver: DriverDetails
-  paymentMethod: "card" | "e-wallet" | "counter" | "pay_at_pickup" | "gcash" | "maya" | "online"
+  paymentMethod: "card" | "e-wallet" | "counter" | "pay_at_pickup" | "gcash" | "maya" | "bank_transfer" | "online"
   agreedToTerms: boolean
   agreedToCancellation: boolean
 }

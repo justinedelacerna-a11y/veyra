@@ -16,6 +16,7 @@ export const MOCK_PAYMENTS: PaymentRecord[] = [
     transactionRef: "pm_txn_88291abc",
     createdAt: "2026-09-24T14:16:00Z",
     updatedAt: "2026-09-24T14:16:00Z",
+    isDemo: false,
     notes: "Pre-auth hold. Charge on pickup.",
   },
   {
@@ -31,6 +32,7 @@ export const MOCK_PAYMENTS: PaymentRecord[] = [
     transactionRef: "pm_txn_73100def",
     createdAt: "2026-09-20T11:32:00Z",
     updatedAt: "2026-09-27T09:15:00Z",
+    isDemo: false,
   },
   {
     id: "PAY-51980-CAP",
@@ -45,6 +47,7 @@ export const MOCK_PAYMENTS: PaymentRecord[] = [
     transactionRef: "pm_txn_51980ghi",
     createdAt: "2026-08-05T08:00:00Z",
     updatedAt: "2026-08-12T08:30:00Z",
+    isDemo: false,
   },
   {
     id: "PAY-30210-REF",
@@ -59,6 +62,7 @@ export const MOCK_PAYMENTS: PaymentRecord[] = [
     transactionRef: "pm_txn_30210jkl",
     createdAt: "2026-06-28T10:00:00Z",
     updatedAt: "2026-07-01T09:30:00Z",
+    isDemo: false,
     refundedAmount: 18300,
     refundReason: "Customer cancellation within free window.",
   },
@@ -75,6 +79,7 @@ export const MOCK_PAYMENTS: PaymentRecord[] = [
     transactionRef: "gcash_txn_99010mno",
     createdAt: "2026-09-22T16:05:00Z",
     updatedAt: "2026-09-22T16:05:00Z",
+    isDemo: false,
   },
   {
     id: "PAY-11400-PEN",
@@ -89,6 +94,7 @@ export const MOCK_PAYMENTS: PaymentRecord[] = [
     transactionRef: "pm_txn_11400pqr",
     createdAt: "2026-09-28T10:30:00Z",
     updatedAt: "2026-09-28T10:30:00Z",
+    isDemo: false,
     notes: "Payment link sent. Awaiting customer action.",
   },
   {
@@ -104,6 +110,7 @@ export const MOCK_PAYMENTS: PaymentRecord[] = [
     transactionRef: "CTR-0822-ILG-0928",
     createdAt: "2026-09-22T09:00:00Z",
     updatedAt: "2026-09-22T09:00:00Z",
+    isDemo: false,
   },
 ]
 

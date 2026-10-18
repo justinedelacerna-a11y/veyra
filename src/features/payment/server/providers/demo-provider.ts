@@ -369,11 +369,11 @@ export class DemoPaymentProvider implements PaymentProvider {
         })
         .eq("id", payment.id)
 
-      // Transition reservation to confirmed
+      // Transition reservation to pending_approval (awaiting staff review and approval)
       await supabase
         .from("reservations")
         .update({
-          status: "confirmed",
+          status: "pending_approval",
           payment_status: "captured",
           updated_at: now,
         })
@@ -382,13 +382,13 @@ export class DemoPaymentProvider implements PaymentProvider {
       return {
         success: true,
         status: "paid",
-        reservationStatus: "confirmed",
+        reservationStatus: "pending_approval",
         reference: reservation.reference,
         paymentReference: paymentRef,
         amountCentavos,
         currency,
         isDemo: true,
-        message: "Simulated payment successful! Reservation is confirmed (Demo).",
+        message: "Simulated payment successful! Reservation is submitted and awaiting admin approval (Demo).",
       }
     } else if (action === "failure") {
       const reason = failureReason || "Payment simulation declined (Demo: Insufficient wallet balance / card rejected)"

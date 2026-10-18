@@ -141,16 +141,18 @@ export function ConfirmationView() {
   const isPaid = effectivePaymentStatus === "captured"
   const isPaymentFailed = effectivePaymentStatus === "failed" || isCancelled || isFailed
 
+  const isApproved = liveData?.status === "confirmed" || liveData?.status === "pickup_ready" || liveData?.status === "active"
+
   const reservationStatusBadge =
-    liveData?.status === "confirmed"
-      ? { status: "success" as const, label: "Reservation Confirmed" }
+    isApproved
+      ? { status: "success" as const, label: "Booking Confirmed" }
+      : liveData?.status === "pending_approval"
+      ? { status: "warning" as const, label: "Awaiting Admin Approval" }
       : liveData?.status === "held"
-      ? { status: "info" as const, label: "Reservation Held" }
+      ? { status: "info" as const, label: "Inventory Held" }
       : liveData?.status === "payment_pending"
       ? { status: "warning" as const, label: "Awaiting Settlement" }
-      : isPaid
-      ? { status: "success" as const, label: "Reservation Confirmed" }
-      : { status: "info" as const, label: "Reservation Active" }
+      : { status: "warning" as const, label: "Awaiting Staff Approval" }
 
   const paymentStatusBadge = isPaid
     ? { status: "success" as const, label: "Payment: Paid (Online)" }
@@ -221,10 +223,12 @@ export function ConfirmationView() {
             />
           </div>
           <h1 className="font-heading text-2xl sm:text-4xl font-bold tracking-tight text-foreground">
-            Reservation Confirmed
+            {isApproved ? "Reservation Confirmed" : "Reservation Submitted"}
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground max-w-md mx-auto">
-            Your vehicle reservation has been successfully confirmed in Veyra. Review your itinerary and handover instructions below.
+            {isApproved
+              ? "Your reservation has been approved. Your vehicle is reserved for the selected dates."
+              : "Your reservation has been submitted and is awaiting staff approval. Your vehicle hold is secured."}
           </p>
         </div>
 

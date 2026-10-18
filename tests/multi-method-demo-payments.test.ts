@@ -25,10 +25,10 @@ describe("Veyra Feature — Multiple Payment Methods in Demo Mode Test Suite", (
       const simulation = {
         action: "success",
         expectedStatus: "captured",
-        expectedResStatus: "confirmed",
+        expectedResStatus: "pending_approval",
       }
       assert.equal(simulation.expectedStatus, "captured")
-      assert.equal(simulation.expectedResStatus, "confirmed")
+      assert.equal(simulation.expectedResStatus, "pending_approval")
     })
 
     it("2. GCash demo failure scenario", () => {
@@ -53,7 +53,7 @@ describe("Veyra Feature — Multiple Payment Methods in Demo Mode Test Suite", (
       assert.match(maya.label, /Maya \(Demo\)/)
 
       // Success
-      const successSim = { action: "success", status: "captured", resStatus: "confirmed" }
+      const successSim = { action: "success", status: "captured", resStatus: "pending_approval" }
       assert.equal(successSim.status, "captured")
 
       // Failure

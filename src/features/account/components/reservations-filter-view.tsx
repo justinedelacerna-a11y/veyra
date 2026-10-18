@@ -20,7 +20,7 @@ export function ReservationsFilterView({
   const filteredReservations = React.useMemo(() => {
     if (selectedTab === "all") return initialReservations
     if (selectedTab === "upcoming") {
-      return initialReservations.filter((r) => r.status === "upcoming")
+      return initialReservations.filter((r) => r.status === "upcoming" || r.status === "pending_approval")
     }
     if (selectedTab === "active") {
       return initialReservations.filter((r) => r.status === "active")
@@ -43,7 +43,7 @@ export function ReservationsFilterView({
   const counts = React.useMemo(() => {
     return {
       all: initialReservations.length,
-      upcoming: initialReservations.filter((r) => r.status === "upcoming").length,
+      upcoming: initialReservations.filter((r) => r.status === "upcoming" || r.status === "pending_approval").length,
       active: initialReservations.filter((r) => r.status === "active").length,
       returning: initialReservations.filter((r) => r.status === "return_inspection").length,
       past: initialReservations.filter((r) => r.status === "completed").length,

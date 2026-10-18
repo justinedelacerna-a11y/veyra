@@ -41,14 +41,17 @@ export function ReservationDetailView({ reservation }: ReservationDetailViewProp
   const { vehicle, pricing } = reservation
 
   const statusTypeMap: Record<string, StatusType> = {
+    pending_approval: "warning",
     upcoming: "info",
     active: "success",
     completed: "neutral",
     cancelled: "error",
+    no_show: "error",
+    disputed: "warning",
   }
   const badgeStatus = statusTypeMap[reservation.status] || "info"
 
-  const canCancel = reservation.status === "upcoming"
+  const canCancel = reservation.status === "upcoming" || reservation.status === "pending_approval"
 
   return (
     <div className="space-y-8">
@@ -140,6 +143,64 @@ export function ReservationDetailView({ reservation }: ReservationDetailViewProp
           )}
         </div>
       </div>
+
+      {/* ── Status Lifecycle Notices ── */}
+      {/* 1. Pending Admin Approval Notice */}
+      {(reservation.status === "pending_approval" || reservation.dbStatus === "pending_approval" || reservation.dbStatus === "payment_pending") && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 sm:p-5 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-3.5">
+          <RiInformationLine className="size-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="font-semibold text-sm text-foreground">Awaiting Administrator Review & Approval</p>
+            <p className="leading-relaxed">
+              Your reservation has been submitted and is awaiting staff approval. Your selected vehicle is held in our inventory, and an operations manager will confirm your booking once review is complete.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Confirmed & Approved Notice */}
+      {(reservation.dbStatus === "confirmed" || reservation.dbStatus === "pickup_ready") && (
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 sm:p-5 text-xs text-emerald-900 dark:text-emerald-200 flex items-start gap-3.5">
+          <RiCheckboxCircleLine className="size-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="font-semibold text-sm text-foreground">Reservation Approved & Confirmed</p>
+            <p className="leading-relaxed">
+              Your reservation has been approved. Your vehicle is reserved for the selected dates.
+              {reservation.approvedAt && ` Confirmed on ${new Date(reservation.approvedAt).toLocaleDateString()}.`}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Active Rental Notice */}
+      {reservation.dbStatus === "active" && (
+        <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 sm:p-5 text-xs text-primary flex items-start gap-3.5">
+          <RiSteeringLine className="size-5 text-primary shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="font-semibold text-sm text-foreground">Active Rental In Progress</p>
+            <p className="leading-relaxed">
+              Your rental is now active. The vehicle handover has been recorded. Enjoy your mobility in Butuan City!
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Cancelled or Rejected Notice */}
+      {(reservation.status === "cancelled" || reservation.dbStatus === "cancelled") && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 sm:p-5 text-xs text-destructive flex items-start gap-3.5">
+          <RiAlertLine className="size-5 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="font-semibold text-sm">
+              {reservation.rejectionReason ? "Reservation Rejected by Operations" : "Reservation Cancelled"}
+            </p>
+            <p className="leading-relaxed text-foreground">
+              {reservation.rejectionReason
+                ? `Your reservation was rejected: "${reservation.rejectionReason}". If you have questions, please see the reason or contact our 24/7 concierge support.`
+                : "This reservation has been cancelled. Vehicle inventory hold has been released."}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Vehicle Summary */}
       <section aria-labelledby="vehicle-section-heading" className="rounded-xl border bg-card p-5 sm:p-6 space-y-4">

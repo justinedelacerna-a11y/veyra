@@ -28,6 +28,9 @@ interface RawReservationRow {
   pickup_contact_phone?: string | null
   internal_notes: string | null
   cancellation_reason: string | null
+  rejection_reason?: string | null
+  approved_at?: string | null
+  approved_by?: string | null
   created_at: string
   updated_at: string
   customers?: {
@@ -118,6 +121,9 @@ function mapRawToAdminReservation(r: RawReservationRow): AdminReservation {
     updatedAt: r.updated_at,
     assignedVehicleId: r.assigned_vehicle_id || undefined,
     internalNotes: r.internal_notes || undefined,
+    approvedAt: r.approved_at || undefined,
+    approvedBy: r.approved_by || undefined,
+    rejectionReason: r.rejection_reason || undefined,
   }
 }
 
@@ -156,6 +162,9 @@ export async function getAdminReservationsList(options?: {
       pickup_contact_phone,
       internal_notes,
       cancellation_reason,
+      rejection_reason,
+      approved_at,
+      approved_by,
       created_at,
       updated_at,
       customers (
@@ -320,6 +329,9 @@ export async function getAdminReservationById(idOrRef: string): Promise<AdminRes
       pickup_contact_phone,
       internal_notes,
       cancellation_reason,
+      rejection_reason,
+      approved_at,
+      approved_by,
       created_at,
       updated_at,
       customers (

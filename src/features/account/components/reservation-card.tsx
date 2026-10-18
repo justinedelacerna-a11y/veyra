@@ -21,6 +21,7 @@ export function ReservationCard({ reservation }: ReservationCardProps) {
   const { vehicle, pricing } = reservation
 
   const statusTypeMap: Record<string, StatusType> = {
+    pending_approval: "warning",
     upcoming: "info",
     active: "success",
     return_inspection: "pending",

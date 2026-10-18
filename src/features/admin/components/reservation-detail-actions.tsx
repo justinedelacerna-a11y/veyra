@@ -34,6 +34,8 @@ import {
   markNoShowAction,
   flagDisputeAction,
   transitionReservationStatusAction,
+  approveReservationAction,
+  rejectReservationAction,
 } from "@/features/admin/server/admin-actions"
 import type { ReturnDamageStatus } from "@/features/admin/server/admin-actions"
 
@@ -46,6 +48,8 @@ type DialogType =
   | "cancel"
   | "pickup_ready"
   | "confirmed"
+  | "approve"
+  | "reject"
   | null
 
 export function AdminReservationDetailActions({
@@ -72,6 +76,9 @@ export function AdminReservationDetailActions({
 
   // Dispute reason
   const [disputeReason, setDisputeReason] = React.useState("")
+
+  // Rejection reason
+  const [rejectionReason, setRejectionReason] = React.useState("")
 
   const showFeedback = (text: string, error?: boolean) => {
     setFeedback({ text, error })
@@ -179,6 +186,36 @@ export function AdminReservationDetailActions({
         >
           {feedback.text}
         </span>
+      )}
+
+      {/* pending_approval → Review, Approve or Reject */}
+      {status === "pending_approval" && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="default"
+            disabled={isPending}
+            onClick={() => setActiveDialog("approve")}
+            className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-xs"
+          >
+            {isPending ? <RiLoader4Line className="size-4 animate-spin" /> : <RiCheckDoubleLine className="size-4" />}
+            <span>Approve Reservation</span>
+          </Button>
+
+          <Button
+            size="sm"
+            variant="destructive"
+            disabled={isPending}
+            onClick={() => {
+              setRejectionReason("")
+              setActiveDialog("reject")
+            }}
+            className="gap-1.5 shadow-xs"
+          >
+            {isPending ? <RiLoader4Line className="size-4 animate-spin" /> : <RiCloseLine className="size-4" />}
+            <span>Reject Reservation</span>
+          </Button>
+        </div>
       )}
 
       {/* payment_pending / held → Confirm */}
@@ -308,6 +345,146 @@ export function AdminReservationDetailActions({
             <span>Cancel</span>
           </Button>
         )}
+
+      {/* ── Approval Review Dialog ── */}
+      <Dialog
+        open={activeDialog === "approve"}
+        onOpenChange={(open) => !open && setActiveDialog(null)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+              <RiCheckDoubleLine className="size-5" />
+              Approve Vehicle Reservation
+            </DialogTitle>
+            <DialogDescription>
+              Review booking details before confirming. Approving locks the vehicle slot and activates the confirmed booking timeline for the customer.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="rounded-lg border bg-muted/30 p-3.5 space-y-2.5 text-xs">
+            <div className="flex justify-between pb-1.5 border-b">
+              <span className="text-muted-foreground">Customer:</span>
+              <span className="font-semibold text-foreground">{reservation.customerName}</span>
+            </div>
+            <div className="flex justify-between pb-1.5 border-b">
+              <span className="text-muted-foreground">Email:</span>
+              <span className="font-mono text-foreground">{reservation.customerEmail || "—"}</span>
+            </div>
+            <div className="flex justify-between pb-1.5 border-b">
+              <span className="text-muted-foreground">Vehicle:</span>
+              <span className="font-semibold text-foreground">{reservation.vehicleName} ({reservation.vehiclePlate})</span>
+            </div>
+            <div className="flex justify-between pb-1.5 border-b">
+              <span className="text-muted-foreground">Rental Schedule:</span>
+              <span className="font-semibold text-foreground">{reservation.pickupDate} {reservation.pickupTime} → {reservation.returnDate}</span>
+            </div>
+            <div className="flex justify-between pb-1.5 border-b">
+              <span className="text-muted-foreground">Duration:</span>
+              <span className="font-semibold text-foreground">{reservation.rentalDays} day{reservation.rentalDays !== 1 ? "s" : ""}</span>
+            </div>
+            <div className="flex justify-between pb-1.5 border-b">
+              <span className="text-muted-foreground">Pickup Barangay:</span>
+              <span className="font-semibold text-foreground">
+                {reservation.pickupBarangay ? `Barangay ${reservation.pickupBarangay}` : reservation.pickupLocationName}
+              </span>
+            </div>
+            {reservation.pickupStreetAddress && (
+              <div className="flex justify-between pb-1.5 border-b">
+                <span className="text-muted-foreground">Delivery Address:</span>
+                <span className="font-semibold text-foreground text-right max-w-[200px] truncate">{reservation.pickupStreetAddress}</span>
+              </div>
+            )}
+            <div className="flex justify-between pb-1.5 border-b">
+              <span className="text-muted-foreground">Calculated Amount:</span>
+              <span className="font-semibold text-foreground">₱{reservation.totalAmount.toLocaleString()} ({reservation.paymentMethod})</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">Payment Status:</span>
+              <span className="font-semibold uppercase tracking-wider text-[11px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                {reservation.paymentStatus}
+              </span>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isPending}
+              onClick={() => setActiveDialog(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={isPending}
+              onClick={() =>
+                handleSimpleAction(() => approveReservationAction(reservation.id))
+              }
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+            >
+              {isPending ? <RiLoader4Line className="size-4 animate-spin mr-1.5" /> : null}
+              Approve & Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Rejection Dialog with Mandatory Reason ── */}
+      <Dialog
+        open={activeDialog === "reject"}
+        onOpenChange={(open) => !open && setActiveDialog(null)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <RiAlertLine className="size-5" />
+              Reject Reservation
+            </DialogTitle>
+            <DialogDescription>
+              Reject reservation <strong className="text-foreground">{reservation.reference || reservation.id}</strong>.
+              This will release the vehicle inventory. Please provide an explicit reason to be recorded in audit logs and shared with the customer.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <Label htmlFor="reject-reason" className="text-xs font-semibold">
+              Rejection Reason <span className="text-destructive">*</span>
+            </Label>
+            <Textarea
+              id="reject-reason"
+              placeholder="e.g. Schedule conflict with scheduled maintenance, driver license document unverified, delivery outside service boundary..."
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              rows={3}
+              className="text-xs"
+            />
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isPending}
+              onClick={() => setActiveDialog(null)}
+            >
+              Back
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={isPending || !rejectionReason.trim()}
+              onClick={() =>
+                handleSimpleAction(() => rejectReservationAction(reservation.id, rejectionReason))
+              }
+            >
+              {isPending ? <RiLoader4Line className="size-4 animate-spin mr-1.5" /> : null}
+              Confirm Rejection
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Simple Dialogs ── */}
       <ConfirmationDialog

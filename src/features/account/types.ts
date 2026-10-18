@@ -2,6 +2,7 @@ import { Vehicle } from "@/types"
 import { BookingPricingSummary, ExtraOption } from "@/features/booking/types"
 
 export type CustomerReservationStatus =
+  | "pending_approval"
   | "upcoming"
   | "active"
   | "return_inspection"
@@ -11,11 +12,23 @@ export type CustomerReservationStatus =
   | "disputed"
 
 export interface ReservationTimelineStep {
-  step: "booked" | "confirmed" | "pickup" | "active" | "return" | "completed"
+  step:
+    | "submitted"
+    | "payment"
+    | "approval"
+    | "confirmed"
+    | "pickup"
+    | "active"
+    | "return"
+    | "completed"
+    | "cancelled"
+    | "rejected"
+    | "booked"
   title: string
   date: string
   completed: boolean
   current: boolean
+  failed?: boolean
   description: string
 }
 
@@ -25,8 +38,13 @@ export interface CustomerReservation {
   vehicleId: string
   vehicle: Vehicle
   status: CustomerReservationStatus
+  dbStatus?: string
   statusLabel: string
   createdAt: string
+  approvedAt?: string
+  rejectionReason?: string
+  actualPickupAt?: string
+  actualReturnAt?: string
   pickupLocationId: string
   pickupLocationName: string
   pickupBarangay?: string

@@ -1,7 +1,7 @@
 import * as React from "react"
 import { ReservationTimelineStep } from "@/features/account/types"
 import { cn } from "@/lib/utils"
-import { RiCheckLine, RiRecordCircleLine, RiTimeLine } from "@remixicon/react"
+import { RiCheckLine, RiCloseLine, RiRecordCircleLine, RiTimeLine } from "@remixicon/react"
 
 export interface ReservationTimelineProps {
   timeline: ReservationTimelineStep[]
@@ -26,7 +26,9 @@ export function ReservationTimeline({
               <div
                 className={cn(
                   "absolute -left-6 sm:-left-8 top-0.5 flex size-5 sm:size-7 items-center justify-center rounded-full border text-xs transition-colors",
-                  item.completed
+                  item.failed
+                    ? "bg-destructive text-destructive-foreground border-destructive"
+                    : item.completed
                     ? "bg-primary text-primary-foreground border-primary"
                     : item.current
                     ? "bg-background border-primary text-primary ring-4 ring-primary/20"
@@ -34,7 +36,9 @@ export function ReservationTimeline({
                 )}
                 aria-hidden="true"
               >
-                {item.completed ? (
+                {item.failed ? (
+                  <RiCloseLine className="size-3 sm:size-4" />
+                ) : item.completed ? (
                   <RiCheckLine className="size-3 sm:size-4" />
                 ) : item.current ? (
                   <RiRecordCircleLine className="size-3 sm:size-4 animate-pulse" />
@@ -48,15 +52,22 @@ export function ReservationTimeline({
                 <span
                   className={cn(
                     "font-semibold text-sm",
-                    item.completed || item.current
+                    item.failed
+                      ? "text-destructive"
+                      : item.completed || item.current
                       ? "text-foreground"
                       : "text-muted-foreground"
                   )}
                 >
                   {item.title}
-                  {item.current && (
+                  {item.current && !item.failed && (
                     <span className="ml-2 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                       Current Stage
+                    </span>
+                  )}
+                  {item.failed && (
+                    <span className="ml-2 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20">
+                      Declined
                     </span>
                   )}
                 </span>

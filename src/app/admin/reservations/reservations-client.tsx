@@ -21,9 +21,10 @@ const RESERVATIONS_TABLES = [
 
 const STATUS_FILTERS: { label: string; value: string }[] = [
   { label: "All", value: "all" },
+  { label: "Pending Approval", value: "pending_approval" },
+  { label: "Confirmed / Approved", value: "confirmed" },
   { label: "Pickup Ready", value: "pickup_ready" },
   { label: "Active", value: "active" },
-  { label: "Confirmed", value: "confirmed" },
   { label: "Payment Pending", value: "payment_pending" },
   { label: "Return Inspection", value: "return_inspection" },
   { label: "Completed", value: "completed" },

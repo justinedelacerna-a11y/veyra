@@ -15,7 +15,8 @@ const ALLOWED_RESERVATION_TRANSITIONS: Record<AdminReservationStatus, AdminReser
   draft: ["quote_created", "cancelled"],
   quote_created: ["held", "expired", "cancelled"],
   held: ["payment_pending", "expired", "cancelled"],
-  payment_pending: ["confirmed", "payment_failed", "cancelled"],
+  payment_pending: ["pending_approval", "confirmed", "payment_failed", "cancelled"],
+  pending_approval: ["confirmed", "cancelled"],
   confirmed: ["pickup_ready", "cancelled"],
   pickup_ready: ["active", "no_show", "cancelled"],
   active: ["return_inspection", "disputed"],
@@ -32,12 +33,13 @@ const ALLOWED_RESERVATION_TRANSITIONS: Record<AdminReservationStatus, AdminReser
  * Role requirements for specific transitions
  */
 const TRANSITION_ROLES: Partial<Record<AdminReservationStatus, StaffRole[]>> = {
+  confirmed: ["branch_staff", "branch_manager", "fleet_manager", "admin", "superadmin"],
   pickup_ready: ["branch_staff", "branch_manager", "fleet_manager", "admin", "superadmin"],
   active: ["branch_staff", "branch_manager", "fleet_manager", "admin", "superadmin"],
   no_show: ["branch_staff", "branch_manager", "fleet_manager", "admin", "superadmin"],
   return_inspection: ["branch_staff", "branch_manager", "fleet_manager", "admin", "superadmin"],
   completed: ["branch_staff", "branch_manager", "fleet_manager", "admin", "superadmin"],
-  cancelled: ["branch_manager", "fleet_manager", "admin", "superadmin"],
+  cancelled: ["branch_staff", "branch_manager", "fleet_manager", "admin", "superadmin"],
   disputed: ["branch_manager", "fleet_manager", "admin", "superadmin"],
 }
 
@@ -1484,4 +1486,267 @@ export async function completeMaintenanceAction(input: {
     return { success: false, message: errorMsg, error: errorMsg }
   }
 }
+
+/**
+ * Approve a pending reservation by authorized staff.
+ * Validates staff role, enforces concurrency lock, rechecks vehicle availability,
+ * updates status to 'confirmed', stamps approved_at/approved_by, and records an audit log.
+ */
+export async function approveReservationAction(
+  reservationId: string
+): Promise<ActionResult> {
+  try {
+    const staff = await requireAdminStaff()
+    const supabase = createClient()
+
+    // 1. Fetch current reservation details
+    const { data: res, error: fetchErr } = await supabase
+      .from("reservations")
+      .select("id, reference, status, vehicle_id, pickup_at, return_at, customer_id, total_amount, payment_status")
+      .eq("id", reservationId)
+      .single()
+
+    if (fetchErr || !res) {
+      return {
+        success: false,
+        message: `Reservation not found: ${reservationId}`,
+        error: "NOT_FOUND",
+      }
+    }
+
+    if (res.status === "confirmed") {
+      return {
+        success: false,
+        message: "This reservation has already been approved and confirmed.",
+        error: "ALREADY_APPROVED",
+      }
+    }
+
+    if (res.status !== "pending_approval" && res.status !== "payment_pending" && res.status !== "held") {
+      return {
+        success: false,
+        message: `Cannot approve reservation in state "${res.status}". Only pending reservations can be approved.`,
+        error: "INVALID_STATE",
+      }
+    }
+
+    // 2. Strict Vehicle Overlap and Concurrency Protection
+    // Check if another reservation was confirmed or is active for the same vehicle and interval
+    const { data: conflicts, error: conflictErr } = await supabase
+      .from("reservations")
+      .select("id, reference, pickup_at, return_at")
+      .eq("vehicle_id", res.vehicle_id)
+      .neq("id", reservationId)
+      .not("status", "in", "(cancelled,no_show,expired,payment_failed,completed,draft)")
+      .lt("pickup_at", res.return_at)
+      .gt("return_at", res.pickup_at)
+      .limit(1)
+
+    if (conflictErr) {
+      return {
+        success: false,
+        message: `Failed to verify vehicle availability: ${conflictErr.message}`,
+        error: "QUERY_ERROR",
+      }
+    }
+
+    if (conflicts && conflicts.length > 0) {
+      const conflictRef = conflicts[0].reference || conflicts[0].id
+      return {
+        success: false,
+        message: `Vehicle availability conflict: Vehicle is already booked for an overlapping period by booking ${conflictRef}. Approval denied.`,
+        error: "VEHICLE_UNAVAILABLE",
+      }
+    }
+
+    // 3. Atomically update reservation to 'confirmed' with staff audit stamp
+    const now = new Date().toISOString()
+    const { data: updatedRows, error: updateErr } = await supabase
+      .from("reservations")
+      .update({
+        status: "confirmed",
+        approved_at: now,
+        approved_by: staff.userId,
+        updated_at: now,
+      })
+      .eq("id", reservationId)
+      .eq("status", res.status) // Optimistic concurrency lock: prevents simultaneous duplicate approvals
+      .select("id")
+
+    if (updateErr) {
+      return {
+        success: false,
+        message: `Failed to approve reservation: ${updateErr.message}`,
+        error: updateErr.message,
+      }
+    }
+
+    if (!updatedRows || updatedRows.length === 0) {
+      return {
+        success: false,
+        message: "Reservation status has changed or was already modified by another administrator.",
+        error: "CONCURRENCY_CONFLICT",
+      }
+    }
+
+    // 4. Record immutable audit log
+    await recordAuditEvent({
+      actorId: staff.userId,
+      actorRole: staff.role,
+      action: "reservation.approved",
+      resourceType: "reservation",
+      resourceId: reservationId,
+      result: "success",
+      details: `Reservation ${res.reference || reservationId} approved by staff (${staff.role}).`,
+      beforeState: { status: res.status },
+      afterState: { status: "confirmed", approved_at: now, approved_by: staff.userId },
+    })
+
+    // 5. Revalidate cache
+    revalidatePath("/admin")
+    revalidatePath("/admin/reservations")
+    revalidatePath(`/admin/reservations/${reservationId}`)
+    revalidatePath("/account/reservations")
+    revalidatePath(`/account/reservations/${res.reference}`)
+    revalidatePath("/vehicles")
+
+    return {
+      success: true,
+      message: `Reservation ${res.reference || reservationId} has been successfully approved and confirmed.`,
+    }
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err)
+    return { success: false, message: errorMsg, error: errorMsg }
+  }
+}
+
+/**
+ * Reject a pending reservation by authorized staff with a recorded reason.
+ * Releases vehicle hold, cancels/refunds captured demo payments, updates status to 'cancelled',
+ * and records an audit log.
+ */
+export async function rejectReservationAction(
+  reservationId: string,
+  reason: string
+): Promise<ActionResult> {
+  try {
+    const staff = await requireAdminStaff()
+
+    if (!reason || !reason.trim()) {
+      return {
+        success: false,
+        message: "A rejection reason is required to reject a reservation.",
+        error: "INVALID_INPUT",
+      }
+    }
+
+    const supabase = createClient()
+
+    // 1. Fetch reservation
+    const { data: res, error: fetchErr } = await supabase
+      .from("reservations")
+      .select("id, reference, status, vehicle_id, customer_id, total_amount, payment_status")
+      .eq("id", reservationId)
+      .single()
+
+    if (fetchErr || !res) {
+      return {
+        success: false,
+        message: `Reservation not found: ${reservationId}`,
+        error: "NOT_FOUND",
+      }
+    }
+
+    if (res.status === "cancelled") {
+      return {
+        success: false,
+        message: "This reservation is already cancelled or rejected.",
+        error: "ALREADY_CANCELLED",
+      }
+    }
+
+    if (res.status === "active" || res.status === "return_inspection" || res.status === "completed") {
+      return {
+        success: false,
+        message: `Cannot reject an in-progress or completed rental (current state: "${res.status}").`,
+        error: "INVALID_STATE",
+      }
+    }
+
+    const now = new Date().toISOString()
+    const trimmedReason = reason.trim()
+
+    // 2. If payment was captured (e.g. demo payment), record demo refund state
+    if (res.payment_status === "captured") {
+      await supabase
+        .from("payments")
+        .update({
+          status: "refunded",
+          notes: `Reservation rejected: ${trimmedReason}`,
+          updated_at: now,
+        })
+        .eq("reservation_id", reservationId)
+    }
+
+    // 3. Update reservation status to cancelled with recorded reason
+    const { data: updatedRows, error: updateErr } = await supabase
+      .from("reservations")
+      .update({
+        status: "cancelled",
+        cancellation_reason: trimmedReason,
+        rejection_reason: trimmedReason,
+        payment_status: res.payment_status === "captured" ? "refunded" : (res.payment_status as "pending" | "authorized" | "captured" | "failed" | "refunded" | "partially_refunded"),
+        updated_at: now,
+      })
+      .eq("id", reservationId)
+      .eq("status", res.status) // Optimistic concurrency lock
+      .select("id")
+
+    if (updateErr) {
+      return {
+        success: false,
+        message: `Failed to reject reservation: ${updateErr.message}`,
+        error: updateErr.message,
+      }
+    }
+
+    if (!updatedRows || updatedRows.length === 0) {
+      return {
+        success: false,
+        message: "Reservation status has changed or was already modified by another administrator.",
+        error: "CONCURRENCY_CONFLICT",
+      }
+    }
+
+    // 4. Record audit event
+    await recordAuditEvent({
+      actorId: staff.userId,
+      actorRole: staff.role,
+      action: "reservation.rejected",
+      resourceType: "reservation",
+      resourceId: reservationId,
+      result: "success",
+      details: `Reservation ${res.reference || reservationId} rejected by staff (${staff.role}). Reason: ${trimmedReason}`,
+      beforeState: { status: res.status, payment_status: res.payment_status },
+      afterState: { status: "cancelled", rejection_reason: trimmedReason },
+    })
+
+    // 5. Revalidate cache
+    revalidatePath("/admin")
+    revalidatePath("/admin/reservations")
+    revalidatePath(`/admin/reservations/${reservationId}`)
+    revalidatePath("/account/reservations")
+    revalidatePath(`/account/reservations/${res.reference}`)
+    revalidatePath("/vehicles")
+
+    return {
+      success: true,
+      message: `Reservation ${res.reference || reservationId} has been rejected. Customer hold released.`,
+    }
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err)
+    return { success: false, message: errorMsg, error: errorMsg }
+  }
+}
+
 

@@ -57,6 +57,12 @@ interface DbReservationRow {
   total_amount: number
   deposit_amount: number
   currency: string
+  cancellation_reason?: string | null
+  rejection_reason?: string | null
+  approved_at?: string | null
+  approved_by?: string | null
+  actual_pickup_at?: string | null
+  actual_return_at?: string | null
   created_at: string
   pickup_barangay?: string | null
   pickup_street_address?: string | null
@@ -74,18 +80,24 @@ function mapStatusToCustomerStatus(dbStatus: string): {
   label: string
 } {
   switch (dbStatus) {
-    case "active":
-      return { status: "active", label: "Trip In Progress" }
-    case "return_inspection":
-      return { status: "return_inspection", label: "Return Inspection" }
-    case "completed":
-      return { status: "completed", label: "Completed Trip" }
-    case "cancelled":
-      return { status: "cancelled", label: "Cancelled" }
-    case "held":
-      return { status: "upcoming", label: "Inventory Held (Pending Checkout)" }
+    case "pending_approval":
+      return { status: "pending_approval", label: "Awaiting Admin Approval" }
     case "payment_pending":
-      return { status: "upcoming", label: "Payment Processing" }
+      return { status: "pending_approval", label: "Payment Processing / In Review" }
+    case "held":
+      return { status: "pending_approval", label: "Hold Awaiting Staff Review" }
+    case "confirmed":
+      return { status: "upcoming", label: "Booking Confirmed • Vehicle Reserved" }
+    case "pickup_ready":
+      return { status: "upcoming", label: "Ready for Pickup & Handover" }
+    case "active":
+      return { status: "active", label: "Active Rental • Trip In Progress" }
+    case "return_inspection":
+      return { status: "return_inspection", label: "Return & Inspection" }
+    case "completed":
+      return { status: "completed", label: "Rental Completed" }
+    case "cancelled":
+      return { status: "cancelled", label: "Cancelled / Rejected" }
     case "payment_failed":
       return { status: "cancelled", label: "Payment Failed" }
     case "expired":
@@ -94,9 +106,6 @@ function mapStatusToCustomerStatus(dbStatus: string): {
       return { status: "no_show", label: "No-Show" }
     case "disputed":
       return { status: "disputed", label: "Under Review" }
-    case "pickup_ready":
-      return { status: "upcoming", label: "Ready for Pickup" }
-    case "confirmed":
     default:
       return { status: "upcoming", label: "Confirmed • Upcoming" }
   }
@@ -131,6 +140,12 @@ export async function getCustomerReservations(): Promise<CustomerReservation[]> 
         total_amount,
         deposit_amount,
         currency,
+        cancellation_reason,
+        rejection_reason,
+        approved_at,
+        approved_by,
+        actual_pickup_at,
+        actual_return_at,
         created_at,
         pickup_barangay,
         pickup_street_address,
@@ -171,6 +186,12 @@ export async function getCustomerReservations(): Promise<CustomerReservation[]> 
         total_amount,
         deposit_amount,
         currency,
+        cancellation_reason,
+        rejection_reason,
+        approved_at,
+        approved_by,
+        actual_pickup_at,
+        actual_return_at,
         created_at,
         pickup_street_address,
         pickup_landmark,
@@ -259,12 +280,17 @@ export async function getCustomerReservations(): Promise<CustomerReservation[]> 
         vehicleId: row.vehicle_id,
         vehicle,
         status,
+        dbStatus: row.status,
         statusLabel: label,
         createdAt: new Date(row.created_at).toLocaleDateString("en-US", {
           month: "short",
           day: "numeric",
           year: "numeric",
         }),
+        approvedAt: row.approved_at || undefined,
+        rejectionReason: row.rejection_reason || row.cancellation_reason || undefined,
+        actualPickupAt: row.actual_pickup_at || undefined,
+        actualReturnAt: row.actual_return_at || undefined,
         pickupLocationId: row.pickup_location_id,
         pickupLocationName: row.pickup_location?.name || "Barangay Libertad Hub",
         pickupBarangay: row.pickup_barangay || row.pickup_location?.barangay || "Libertad",
@@ -318,60 +344,179 @@ export async function getCustomerReservations(): Promise<CustomerReservation[]> 
           licenseNumberMasked: maskedLicense,
           licenseCountry: primaryDriver?.license_country === "PH" ? "Philippines (LTO)" : "International",
         },
-        timeline: [
-          {
-            step: "booked",
-            title: "Reservation Placed",
-            date: new Date(row.created_at).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            }),
-            completed: true,
-            current: row.status === "held" || row.status === "quote_created",
-            description: "Initial booking quote and vehicle slot held.",
-          },
-          {
-            step: "confirmed",
-            title: "Booking Confirmed",
-            date: "Vehicle Slot Reserved",
-            completed: row.status !== "held" && row.status !== "quote_created",
-            current: row.status === "confirmed",
-            description: "Vehicle assignment locked in fleet inventory.",
-          },
-          {
-            step: "pickup",
-            title: "Pickup & Key Handover",
-            date: `${pickupDateObj.toLocaleDateString("en-US", { month: "short", day: "numeric" })} • ${row.pickup_location?.name || "Butuan City Operations Hub"}`,
-            completed: row.status === "active" || row.status === "completed",
-            current: row.status === "pickup_ready",
-            description: "Handover at Butuan City Operations Hub.",
-          },
-          {
-            step: "active",
-            title: "Active Rental",
-            date: `${row.rental_days} Days Mobility`,
-            completed: row.status === "completed",
-            current: row.status === "active",
-            description: "24/7 dedicated fleet logistics concierge.",
-          },
-          {
-            step: "return",
-            title: "Return & Inspection",
-            date: returnDateObj.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-            completed: row.status === "completed",
-            current: row.status === "return_inspection",
-            description: "Vehicle inspection and security hold release.",
-          },
-          {
-            step: "completed",
-            title: "Rental Completed",
-            date: "Closed",
-            completed: row.status === "completed",
-            current: false,
-            description: "Rental receipt finalized.",
-          },
-        ],
+        timeline: (() => {
+          const isCancelledOrRejected =
+            row.status === "cancelled" ||
+            row.status === "expired" ||
+            row.status === "payment_failed"
+
+          const isApproved =
+            row.status === "confirmed" ||
+            row.status === "pickup_ready" ||
+            row.status === "active" ||
+            row.status === "return_inspection" ||
+            row.status === "completed"
+
+          const isHandedOver =
+            row.status === "active" ||
+            row.status === "return_inspection" ||
+            row.status === "completed"
+
+          const isRentalCompleted = row.status === "completed"
+
+          // 1. Payment status details
+          const paymentCaptured = row.payment_status === "captured"
+          const isCounter = row.payment_method === "counter"
+          const paymentFailed = row.payment_status === "failed"
+
+          let paymentTitle = "Payment"
+          let paymentDate = "Pending"
+          let paymentDesc = "Awaiting payment settlement."
+          if (paymentCaptured) {
+            paymentTitle = "Payment Completed"
+            paymentDate = "Captured"
+            paymentDesc = "Payment confirmed and recorded."
+          } else if (isCounter) {
+            paymentTitle = "Pay at Pickup"
+            paymentDate = "At Handover"
+            paymentDesc = "Payment to be collected upon vehicle handover."
+          } else if (paymentFailed) {
+            paymentTitle = "Payment Failed"
+            paymentDate = "Declined"
+            paymentDesc = "Payment attempt was unsuccessful."
+          }
+
+          // 2. Admin Review & Approval milestone
+          let approvalTitle = "Awaiting Admin Approval"
+          let approvalDate = "In Review"
+          let approvalDesc = "Your reservation has been submitted and is awaiting staff approval."
+          let approvalCompleted = false
+          let approvalCurrent = false
+          let approvalFailed = false
+
+          if (isCancelledOrRejected) {
+            approvalTitle = row.rejection_reason ? "Reservation Rejected" : "Reservation Cancelled"
+            approvalDate = "Declined"
+            approvalDesc =
+              row.rejection_reason ||
+              row.cancellation_reason ||
+              "Your reservation was rejected or cancelled."
+            approvalFailed = true
+          } else if (isApproved) {
+            approvalTitle = "Admin Approval"
+            approvalDate = row.approved_at
+              ? new Date(row.approved_at).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })
+              : "Approved"
+            approvalDesc =
+              "Your reservation has been approved. Your vehicle is reserved for the selected dates."
+            approvalCompleted = true
+          } else {
+            approvalCurrent = true
+          }
+
+          return [
+            {
+              step: "submitted" as const,
+              title: "Reservation Submitted",
+              date: new Date(row.created_at).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              }),
+              completed: true,
+              current: false,
+              description: `Booking request placed for ${row.rental_days} day${row.rental_days !== 1 ? "s" : ""}.`,
+            },
+            {
+              step: "payment" as const,
+              title: paymentTitle,
+              date: paymentDate,
+              completed: paymentCaptured || isCounter,
+              current:
+                !isCancelledOrRejected &&
+                !paymentCaptured &&
+                !isCounter &&
+                row.status === "payment_pending",
+              failed: paymentFailed,
+              description: paymentDesc,
+            },
+            {
+              step: "approval" as const,
+              title: approvalTitle,
+              date: approvalDate,
+              completed: approvalCompleted,
+              current: approvalCurrent,
+              failed: approvalFailed,
+              description: approvalDesc,
+            },
+            {
+              step: "confirmed" as const,
+              title: "Booking Confirmed",
+              date: isApproved ? "Confirmed" : "Pending",
+              completed: isApproved,
+              current: !isCancelledOrRejected && row.status === "confirmed",
+              description: isApproved
+                ? "Vehicle assignment locked in fleet inventory."
+                : "Vehicle will be locked once staff completes review.",
+            },
+            {
+              step: "pickup" as const,
+              title: "Pickup & Key Handover",
+              date: row.actual_pickup_at
+                ? new Date(row.actual_pickup_at).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  })
+                : `${pickupDateObj.toLocaleDateString("en-US", { month: "short", day: "numeric" })} • ${row.pickup_location?.name || "Butuan Operations Hub"}`,
+              completed: isHandedOver,
+              current: !isCancelledOrRejected && row.status === "pickup_ready",
+              description: row.actual_pickup_at
+                ? "Vehicle keys handed over to customer."
+                : "Vehicle inspection and key handover at designated hub.",
+            },
+            {
+              step: "active" as const,
+              title: "Active Rental",
+              date: row.actual_pickup_at ? "In Progress" : `${row.rental_days} Days Mobility`,
+              completed: isRentalCompleted,
+              current: !isCancelledOrRejected && row.status === "active",
+              description:
+                row.status === "active"
+                  ? "Your rental is now active. The vehicle handover has been recorded."
+                  : "24/7 dedicated fleet logistics concierge and support.",
+            },
+            {
+              step: "return" as const,
+              title: "Return & Inspection",
+              date: row.actual_return_at
+                ? new Date(row.actual_return_at).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  })
+                : returnDateObj.toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  }),
+              completed: isRentalCompleted,
+              current: !isCancelledOrRejected && row.status === "return_inspection",
+              description: "Vehicle return inspection and security hold release.",
+            },
+            {
+              step: "completed" as const,
+              title: "Rental Completed",
+              date: isRentalCompleted ? "Closed" : "Pending",
+              completed: isRentalCompleted,
+              current: false,
+              description: isRentalCompleted
+                ? "Rental contract finalized and closed."
+                : "Final contract closure following return inspection.",
+            },
+          ]
+        })(),
         paymentMethod: paymentMethodMap[row.payment_method || "card"] || "card",
         paymentStatus: paymentStatusMap[row.payment_status] || "authorized",
         cancellationPolicy: "Free cancellation with full refund up to 24 hours prior to scheduled handover time.",

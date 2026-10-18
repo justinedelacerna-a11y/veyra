@@ -17,7 +17,7 @@ export interface CreateReservationParams {
   quoteId?: string
   driver: DriverDetails
   paymentMethod?: "card" | "e-wallet" | "counter" | "pay_at_pickup" | "gcash" | "maya" | "bank_transfer" | "online"
-  initialStatus?: "held" | "confirmed"
+  initialStatus?: "held" | "payment_pending" | "pending_approval" | "confirmed"
   pickupBarangay?: string
   pickupStreetAddress?: string
   pickupLandmark?: string
@@ -399,11 +399,10 @@ export async function createReservation(
 
     const targetStatus =
       params.initialStatus ||
-      (dbPaymentMethod === "counter" ? "confirmed" : "payment_pending")
+      (dbPaymentMethod === "counter" ? "pending_approval" : "payment_pending")
 
-
-    // 7b. Server-Side KYC Gate: If finalizing a confirmed booking, enforce customer verification
-    if (targetStatus === "confirmed") {
+    // 7b. Server-Side KYC Gate: If submitting for review or confirming, enforce customer verification
+    if (targetStatus === "confirmed" || targetStatus === "pending_approval") {
       const { data: customerRow } = await supabase
         .from("customers")
         .select("verification_status")

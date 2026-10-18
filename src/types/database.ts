@@ -1262,6 +1262,8 @@ export type Database = {
         Row: {
           actual_pickup_at: string | null
           actual_return_at: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           assigned_vehicle_id: string | null
           cancellation_reason: string | null
           created_at: string
@@ -1280,6 +1282,7 @@ export type Database = {
           pickup_street_address?: string | null
           pickup_landmark?: string | null
           pickup_contact_phone?: string | null
+          rejection_reason?: string | null
           stripe_session_id?: string | null
           stripe_payment_intent?: string | null
           quote_id: string
@@ -1295,6 +1298,8 @@ export type Database = {
         Insert: {
           actual_pickup_at?: string | null
           actual_return_at?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           assigned_vehicle_id?: string | null
           cancellation_reason?: string | null
           created_at?: string
@@ -1313,6 +1318,7 @@ export type Database = {
           pickup_street_address?: string | null
           pickup_landmark?: string | null
           pickup_contact_phone?: string | null
+          rejection_reason?: string | null
           stripe_session_id?: string | null
           stripe_payment_intent?: string | null
           quote_id: string
@@ -1328,6 +1334,8 @@ export type Database = {
         Update: {
           actual_pickup_at?: string | null
           actual_return_at?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           assigned_vehicle_id?: string | null
           cancellation_reason?: string | null
           created_at?: string
@@ -1346,6 +1354,7 @@ export type Database = {
           pickup_street_address?: string | null
           pickup_landmark?: string | null
           pickup_contact_phone?: string | null
+          rejection_reason?: string | null
           stripe_session_id?: string | null
           stripe_payment_intent?: string | null
           quote_id?: string

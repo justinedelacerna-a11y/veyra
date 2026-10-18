@@ -606,11 +606,11 @@ export async function processPayMongoWebhookEvent(
         .eq("reservation_id", reservation.id)
         .eq("status", "pending")
 
-      // Atomically transition reservation: payment_pending -> confirmed
+      // Atomically transition reservation: payment_pending -> pending_approval
       await supabase
         .from("reservations")
         .update({
-          status: "confirmed",
+          status: "pending_approval",
           payment_status: "captured",
           updated_at: new Date().toISOString(),
         })

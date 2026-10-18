@@ -72,6 +72,32 @@ export default async function AdminReservationDetailPage({ params }: Props) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Column */}
         <div className="lg:col-span-2 space-y-5">
+          {/* Pending Approval Banner */}
+          {res.status === "pending_approval" && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-3">
+              <RiInformationLine className="size-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-semibold text-sm">Action Required: Awaiting Administrator Review</p>
+                <p className="leading-relaxed">
+                  This reservation has been submitted and is currently in review. Please inspect the customer identity, vehicle schedule, and pickup details above, then click <strong>Approve Reservation</strong> to confirm the booking or <strong>Reject Reservation</strong> with a documented reason.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Rejection Banner */}
+          {res.rejectionReason && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-xs text-destructive flex items-start gap-3">
+              <RiInformationLine className="size-5 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-semibold text-sm">Reservation Rejected</p>
+                <p className="leading-relaxed">
+                  Reason recorded by staff: <strong className="font-medium text-foreground">{res.rejectionReason}</strong>
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Customer */}
           <section className="rounded-lg border bg-card p-5 space-y-3" aria-labelledby="cust-heading">
             <h2 id="cust-heading" className="font-heading text-sm font-bold text-foreground flex items-center gap-2">
@@ -202,6 +228,12 @@ export default async function AdminReservationDetailPage({ params }: Props) {
                 <StatusBadge status={config.badgeVariant} label={config.label} size="sm" />
               </div>
               <p className="text-muted-foreground leading-relaxed">{config.description}</p>
+              {res.approvedAt && (
+                <div className="pt-2 border-t text-[11px] text-muted-foreground space-y-0.5">
+                  <span className="font-semibold text-foreground">Approved: </span>
+                  <span>{new Date(res.approvedAt).toLocaleString()}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>

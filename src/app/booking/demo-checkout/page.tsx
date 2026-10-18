@@ -96,8 +96,8 @@ export default async function DemoCheckoutPage({ searchParams }: DemoCheckoutPag
     redirect("/account/reservations")
   }
 
-  // If already captured/confirmed, redirect to confirmation
-  if (reservation.status === "confirmed") {
+  // If already captured/confirmed or awaiting approval, redirect to confirmation
+  if (reservation.status === "confirmed" || reservation.status === "pending_approval") {
     redirect(`/booking/confirmation?ref=${encodeURIComponent(reference)}&demo=paid`)
   }
 

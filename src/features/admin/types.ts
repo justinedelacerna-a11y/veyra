@@ -8,6 +8,7 @@ export type AdminReservationStatus =
   | "quote_created"
   | "held"
   | "payment_pending"
+  | "pending_approval"
   | "confirmed"
   | "pickup_ready"
   | "active"
@@ -30,12 +31,13 @@ export const RESERVATION_STATUS_CONFIG: Record<AdminReservationStatus, AdminRese
   quote_created: { label: "Quote Created", badgeVariant: "neutral", description: "Authoritative price quote generated." },
   held: { label: "Held", badgeVariant: "pending", description: "Vehicle slot held, awaiting payment." },
   payment_pending: { label: "Payment Pending", badgeVariant: "warning", description: "Awaiting payment confirmation." },
-  confirmed: { label: "Confirmed", badgeVariant: "success", description: "Payment received or deferred hold confirmed." },
+  pending_approval: { label: "Pending Approval", badgeVariant: "warning", description: "Awaiting administrator review and approval." },
+  confirmed: { label: "Confirmed", badgeVariant: "success", description: "Reservation approved by administrator; vehicle locked." },
   pickup_ready: { label: "Pickup Ready", badgeVariant: "info", description: "Vehicle prepped and staged at hub." },
   active: { label: "Active Rental", badgeVariant: "success", description: "Vehicle is currently on rental." },
   return_inspection: { label: "Return Inspection", badgeVariant: "pending", description: "Vehicle returned; inspection in progress." },
   completed: { label: "Completed", badgeVariant: "neutral", description: "Rental closed, deposit released." },
-  cancelled: { label: "Cancelled", badgeVariant: "error", description: "Reservation was cancelled." },
+  cancelled: { label: "Cancelled", badgeVariant: "error", description: "Reservation was cancelled or rejected." },
   no_show: { label: "No-Show", badgeVariant: "error", description: "Customer did not appear for pickup." },
   disputed: { label: "Disputed", badgeVariant: "warning", description: "Reservation under dispute review." },
   expired: { label: "Expired", badgeVariant: "neutral", description: "Hold period expired without payment." },
@@ -107,6 +109,9 @@ export interface AdminReservation {
   updatedAt: string
   assignedVehicleId?: string
   internalNotes?: string
+  approvedAt?: string
+  approvedBy?: string
+  rejectionReason?: string
 }
 
 // ─── Payment Record ───────────────────────────────────────────────────────────
@@ -231,6 +236,8 @@ export interface StaffUser {
 export type AuditAction =
   | "reservation.created"
   | "reservation.confirmed"
+  | "reservation.approved"
+  | "reservation.rejected"
   | "reservation.cancelled"
   | "reservation.status_changed"
   | "payment.initiated"

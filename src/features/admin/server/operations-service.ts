@@ -1,5 +1,5 @@
 import "server-only"
-import { createClient } from "@/lib/supabase/server"
+import { createClient, createServiceClient } from "@/lib/supabase/server"
 import type {
   MaintenanceRecord,
   MaintenanceStatus,
@@ -225,7 +225,7 @@ interface RawPaymentRow {
 }
 
 export async function getAdminPaymentsList(): Promise<PaymentRecord[]> {
-  const supabase = createClient()
+  const supabase = createServiceClient()
 
   const { data, error } = await supabase
     .from("payments")

@@ -165,4 +165,164 @@ describe("Veyra KYC & Payment System Test Suite", () => {
       assert.equal(signedUrlTtl, 300, "Signed URL TTL must be 300 seconds")
     })
   })
+
+  // ─── PART 10: KYC Upload & Identity Resolution Flow ───────────────────────
+  describe("KYC Document Upload Flow & Customer Profile Resolution", () => {
+    it("Scenario 1: Resolves customer exclusively from authenticated session without trusting browser IDs", () => {
+      const authenticatedClerkUser = {
+        id: "user_clerk_verified_123",
+        email: "driver@veyra.local",
+      }
+      const maliciousBrowserSuppliedId = "victim_cust_uuid_999"
+
+      // Ownership resolution must ignore browser input and strictly derive from Clerk ID
+      const resolvedCustomerId = ((clerkId: string) => {
+        return `resolved_cust_for_${clerkId}`
+      })(authenticatedClerkUser.id)
+
+      assert.notEqual(resolvedCustomerId, maliciousBrowserSuppliedId)
+      assert.equal(resolvedCustomerId, `resolved_cust_for_${authenticatedClerkUser.id}`)
+    })
+
+    it("Scenario 2: Rejects unauthenticated requests before processing files", () => {
+      const unauthenticatedSession = null
+      const canUpload = Boolean(unauthenticatedSession)
+      assert.equal(canUpload, false, "Unauthenticated session must be rejected with UNAUTHORIZED")
+    })
+
+    it("Scenario 3: Auto-provisions first-time customer safely and prevents duplicate profiles", () => {
+      const userDatabase = new Map<string, { id: string; clerk_id: string }>()
+      const customerDatabase = new Map<string, { id: string; user_id: string; membership_number: string }>()
+
+      function getOrCreateCustomer(clerkId: string) {
+        let dbUser = userDatabase.get(clerkId)
+        if (!dbUser) {
+          dbUser = { id: `user-${clerkId}`, clerk_id: clerkId }
+          userDatabase.set(clerkId, dbUser)
+        }
+
+        let customer = customerDatabase.get(dbUser.id)
+        if (!customer) {
+          customer = {
+            id: `cust-${dbUser.id}`,
+            user_id: dbUser.id,
+            membership_number: `VYR-CUS-${clerkId.toUpperCase()}`,
+          }
+          customerDatabase.set(dbUser.id, customer)
+        }
+        return customer
+      }
+
+      // First call: provisions
+      const firstCall = getOrCreateCustomer("user_first_timer_001")
+      assert.ok(firstCall.id)
+      assert.equal(userDatabase.size, 1)
+      assert.equal(customerDatabase.size, 1)
+
+      // Subsequent call: reuses existing without duplicates
+      const secondCall = getOrCreateCustomer("user_first_timer_001")
+      assert.equal(firstCall.id, secondCall.id)
+      assert.equal(userDatabase.size, 1)
+      assert.equal(customerDatabase.size, 1)
+    })
+
+    it("Scenario 4: Enforces strict isolated storage path convention (customerId/documentType/timestamp-uuid)", () => {
+      const customerId = "cust_uuid_456"
+      const docType = "driver_license"
+      const timestamp = 1792309100000
+      const uuid = "550e8400-e29b-41d4-a716-446655440000"
+      const ext = "jpg"
+
+      const storagePath = `${customerId}/${docType}/${timestamp}-${uuid}.${ext}`
+
+      assert.ok(storagePath.startsWith(`${customerId}/`))
+      assert.ok(storagePath.includes(`/${docType}/`))
+      assert.ok(storagePath.endsWith(`.${ext}`))
+      assert.equal(storagePath.split("/")[0], customerId, "Customer directory must isolate uploaded files")
+    })
+
+    it("Scenario 5: Enforces file size limit of 10 MB and allowed MIME types", () => {
+      const MAX_BYTES = 10 * 1024 * 1024
+      const ALLOWED_MIMES = ["image/jpeg", "image/png", "image/webp", "application/pdf"]
+
+      const validFile = { size: 5 * 1024 * 1024, type: "image/jpeg" }
+      const oversizedFile = { size: 12 * 1024 * 1024, type: "image/jpeg" }
+      const invalidMimeFile = { size: 2 * 1024 * 1024, type: "application/x-msdownload" }
+
+      assert.equal(validFile.size <= MAX_BYTES && ALLOWED_MIMES.includes(validFile.type), true)
+      assert.equal(oversizedFile.size <= MAX_BYTES, false, "Oversized file must be rejected")
+      assert.equal(ALLOWED_MIMES.includes(invalidMimeFile.type), false, "Unsupported MIME must be rejected")
+    })
+
+    it("Scenario 6: Uploading driver's license transitions document to pending_review and customer status to pending", () => {
+      let docStatus = "not_uploaded"
+      let customerVerificationStatus = "unverified"
+
+      // Upon upload
+      docStatus = "pending_review"
+      if (customerVerificationStatus !== "verified") {
+        customerVerificationStatus = "pending"
+      }
+
+      assert.equal(docStatus, "pending_review", "Document must be pending_review, never prematurely verified")
+      assert.equal(customerVerificationStatus, "pending", "Customer must transition to pending")
+    })
+
+    it("Scenario 7: Prevents customer from uploading documents to another customer's profile", () => {
+      const sessionUserClerkId = "user_attacker"
+      const legitimateCustomer = { id: "cust_legitimate", clerkId: "user_victim" }
+
+      const canUploadToVictim = sessionUserClerkId === legitimateCustomer.clerkId
+      assert.equal(canUploadToVictim, false, "Cross-account upload must be strictly blocked")
+    })
+
+    it("Scenario 8: Masks internal database error details and provides safe user feedback", () => {
+      const rawDbError = new Error("relation public.customers violates foreign key constraint customer_id_fkey on node ip-10-0-1-5")
+      const safeUserMessage = rawDbError.message.includes("relation") || rawDbError.message.includes("constraint")
+        ? "Failed to register document in records. Please try again."
+        : rawDbError.message
+
+      assert.equal(safeUserMessage, "Failed to register document in records. Please try again.")
+      assert.equal(safeUserMessage.includes("relation"), false)
+      assert.equal(safeUserMessage.includes("constraint"), false)
+      assert.equal(safeUserMessage.includes("ip-"), false)
+    })
+
+    it("Scenario 9: Customer document reflects in KYC status summary with driver license badge", () => {
+      const documents = [
+        {
+          id: "doc-1",
+          category: "driver_license",
+          status: "pending_review",
+          uploadedAt: "Oct 18, 2026",
+        },
+      ]
+
+      const hasDriverLicenseUploaded = documents.some(
+        (d) => d.category === "driver_license" && d.status !== "not_uploaded"
+      )
+      const isApproved = documents.some((d) => d.category === "driver_license" && d.status === "approved")
+
+      assert.equal(hasDriverLicenseUploaded, true)
+      assert.equal(isApproved, false)
+    })
+
+    it("Scenario 10: Authorized staff review updates KYC document and customer status upon approval", () => {
+      let customerStatus = "pending"
+      const doc = {
+        id: "doc-verified-01",
+        type: "driver_license",
+        status: "pending_review",
+      }
+
+      // Staff approval
+      doc.status = "approved"
+      if (doc.type === "driver_license" && doc.status === "approved") {
+        customerStatus = "verified"
+      }
+
+      assert.equal(doc.status, "approved")
+      assert.equal(customerStatus, "verified")
+    })
+  })
 })

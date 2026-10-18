@@ -1,6 +1,6 @@
 import "server-only"
 import { currentUser } from "@clerk/nextjs/server"
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
 import type {
   CustomerProfile,
   CustomerDocument,
@@ -9,11 +9,197 @@ import type {
   KycVerificationStatus,
 } from "../types"
 
+export interface ResolvedCustomerRecord {
+  id: string
+  userId: string
+  firstName: string
+  lastName: string
+  email: string
+  phone: string | null
+  membershipNumber: string
+  membershipTier: string
+  totalRentals: number
+  verificationStatus: KycVerificationStatus
+  preferredHubId: string | null
+  createdAt: string
+}
+
+/**
+ * Safely resolve or auto-provision the authenticated customer profile in Supabase.
+ *
+ * Requirements enforced:
+ * - Stable identity mapping: first lookup by immutable clerk_id.
+ * - Safely link pre-existing seed/unlinked records by email without account hijacking.
+ * - Auto-provision missing public.users and public.customers rows idempotently.
+ * - Never trust client-supplied customer IDs; always derive from verified Clerk session.
+ */
+export async function resolveOrCreateCustomerProfile(user: {
+  id: string
+  emailAddresses?: Array<{ emailAddress: string; id?: string }>
+  primaryEmailAddressId?: string | null
+  firstName?: string | null
+  lastName?: string | null
+  createdAt?: number
+}): Promise<ResolvedCustomerRecord | null> {
+  if (!user || !user.id) {
+    return null
+  }
+
+  const supabase = createServiceClient()
+  const clerkId = user.id
+  const primaryEmail =
+    user.emailAddresses?.find((e) => e.id === user.primaryEmailAddressId)?.emailAddress?.toLowerCase() ||
+    user.emailAddresses?.[0]?.emailAddress?.toLowerCase() ||
+    ""
+
+  // 1. Stable identity mapping: Check public.users by clerk_id
+  const { data: initialUser, error: uErr } = await supabase
+    .from("users")
+    .select("id, email, clerk_id, user_type, status")
+    .eq("clerk_id", clerkId)
+    .maybeSingle()
+
+  let dbUser = initialUser
+
+  if (uErr) {
+    console.error("[customer-repository] Error querying user by clerk_id:", uErr.message)
+  }
+
+  // 2. If no record has this clerk_id, check if an unlinked row matches the verified primary email
+  if (!dbUser && primaryEmail) {
+    const { data: emailUser } = await supabase
+      .from("users")
+      .select("id, email, clerk_id, user_type, status")
+      .eq("email", primaryEmail)
+      .maybeSingle()
+
+    if (emailUser) {
+      // Only link if clerk_id is missing, temporary, or already matches
+      const isUnlinked =
+        !emailUser.clerk_id ||
+        emailUser.clerk_id.startsWith("temp_") ||
+        emailUser.clerk_id === clerkId
+
+      if (isUnlinked) {
+        const { data: updatedUser, error: updateErr } = await supabase
+          .from("users")
+          .update({
+            clerk_id: clerkId,
+            email_verified: true,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", emailUser.id)
+          .select("id, email, clerk_id, user_type, status")
+          .single()
+
+        if (!updateErr && updatedUser) {
+          dbUser = updatedUser
+        }
+      }
+    }
+  }
+
+  // 3. If user row still does not exist, provision safely
+  if (!dbUser) {
+    const emailToUse = primaryEmail || `${clerkId}@customer.veyra.local`
+    const { data: newUser, error: createUErr } = await supabase
+      .from("users")
+      .insert({
+        clerk_id: clerkId,
+        email: emailToUse,
+        email_verified: Boolean(primaryEmail),
+        user_type: "customer",
+        status: "active",
+      })
+      .select("id, email, clerk_id, user_type, status")
+      .single()
+
+    if (createUErr || !newUser) {
+      // In case of concurrent creation, query by clerk_id
+      const { data: fallbackUser } = await supabase
+        .from("users")
+        .select("id, email, clerk_id, user_type, status")
+        .eq("clerk_id", clerkId)
+        .maybeSingle()
+
+      if (!fallbackUser) {
+        console.error("[customer-repository] Failed to provision public.users record:", createUErr?.message)
+        return null
+      }
+      dbUser = fallbackUser
+    } else {
+      dbUser = newUser
+    }
+  }
+
+  // 4. Resolve customer profile row by user_id
+  const { data: initialCustomer, error: cErr } = await supabase
+    .from("customers")
+    .select("id, user_id, first_name, last_name, phone, membership_tier, membership_number, total_rentals, verification_status, preferred_hub_id, created_at")
+    .eq("user_id", dbUser.id)
+    .maybeSingle()
+
+  let customer = initialCustomer
+
+  if (cErr) {
+    console.error("[customer-repository] Error querying customer by user_id:", cErr.message)
+  }
+
+  // 5. If customer profile row does not exist, provision safely
+  if (!customer) {
+    const firstName = user.firstName?.trim() || "Customer"
+    const lastName = user.lastName?.trim() || "Member"
+    const membershipNumber = `VYR-CUS-${Math.random().toString(36).substring(2, 10).toUpperCase()}`
+
+    const { data: newCustomer, error: createCErr } = await supabase
+      .from("customers")
+      .insert({
+        user_id: dbUser.id,
+        first_name: firstName,
+        last_name: lastName,
+        membership_number: membershipNumber,
+        membership_tier: "standard",
+        verification_status: "unverified",
+      })
+      .select("id, user_id, first_name, last_name, phone, membership_tier, membership_number, total_rentals, verification_status, preferred_hub_id, created_at")
+      .single()
+
+    if (createCErr || !newCustomer) {
+      // In case of concurrent creation, query again
+      const { data: fallbackCustomer } = await supabase
+        .from("customers")
+        .select("id, user_id, first_name, last_name, phone, membership_tier, membership_number, total_rentals, verification_status, preferred_hub_id, created_at")
+        .eq("user_id", dbUser.id)
+        .maybeSingle()
+
+      if (!fallbackCustomer) {
+        console.error("[customer-repository] Failed to provision customer row:", createCErr?.message)
+        return null
+      }
+      customer = fallbackCustomer
+    } else {
+      customer = newCustomer
+    }
+  }
+
+  return {
+    id: customer.id,
+    userId: dbUser.id,
+    firstName: customer.first_name,
+    lastName: customer.last_name,
+    email: dbUser.email,
+    phone: customer.phone,
+    membershipNumber: customer.membership_number,
+    membershipTier: customer.membership_tier,
+    totalRentals: customer.total_rentals,
+    verificationStatus: (customer.verification_status as KycVerificationStatus) || "unverified",
+    preferredHubId: customer.preferred_hub_id,
+    createdAt: customer.created_at,
+  }
+}
+
 /**
  * Fetch the authenticated customer's profile from Clerk and Supabase.
- *
- * RLS: `customers: own row select` enforces that customers can only read
- * their own record where `user_id = veyra_private.current_user_id()`.
  */
 export async function getCustomerProfile(): Promise<CustomerProfile | null> {
   const user = await currentUser()
@@ -21,84 +207,48 @@ export async function getCustomerProfile(): Promise<CustomerProfile | null> {
     return null
   }
 
-  const supabase = createClient()
-
   try {
-    const { data: customer, error } = await supabase
-      .from("customers")
-      .select("id, first_name, last_name, phone, membership_tier, membership_number, total_rentals, verification_status, preferred_hub_id, created_at, locations(name)")
-      .maybeSingle()
-
-    if (error) {
-      console.warn("[customer-repository] error fetching customer row:", error.message)
+    const customer = await resolveOrCreateCustomerProfile(user)
+    if (!customer) {
+      return null
     }
 
-    const email = user.emailAddresses[0]?.emailAddress || ""
-
-    if (customer) {
-      const locName = Array.isArray(customer.locations)
-        ? customer.locations[0]?.name
-        : (customer.locations as { name?: string } | null)?.name
-
-      return {
-        id: customer.id,
-        firstName: customer.first_name || user.firstName || "Member",
-        lastName: customer.last_name || user.lastName || "",
-        email,
-        phone: customer.phone || "",
-        memberSince: new Date(customer.created_at || user.createdAt).toLocaleDateString("en-US", {
-          month: "long",
-          year: "numeric",
-        }),
-        tier:
-          customer.membership_tier === "elite"
-            ? "Veyra Circle • Elite Tier"
-            : customer.membership_tier === "preferred"
-            ? "Veyra Circle • Preferred Tier"
-            : "Veyra Circle • Standard Tier",
-        membershipNumber: customer.membership_number || "VYR-M-ACTIVE",
-        preferredHubId: customer.preferred_hub_id || "",
-        preferredHubName: locName || "Flagship Airport Terminal",
-        totalRentals: customer.total_rentals || 0,
-        verificationStatus: (customer.verification_status as KycVerificationStatus) || "not_submitted",
-      }
+    let locName: string | undefined
+    if (customer.preferredHubId) {
+      const supabase = createServiceClient()
+      const { data: loc } = await supabase
+        .from("locations")
+        .select("name")
+        .eq("id", customer.preferredHubId)
+        .maybeSingle()
+      locName = loc?.name
     }
 
-    // Default to Clerk identity when DB customer row has not yet synced
     return {
-      id: user.id,
-      firstName: user.firstName || "Member",
-      lastName: user.lastName || "",
-      email,
-      phone: "",
-      memberSince: new Date(user.createdAt).toLocaleDateString("en-US", {
+      id: customer.id,
+      firstName: customer.firstName || user.firstName || "Member",
+      lastName: customer.lastName || user.lastName || "",
+      email: customer.email || user.emailAddresses[0]?.emailAddress || "",
+      phone: customer.phone || "",
+      memberSince: new Date(customer.createdAt || user.createdAt).toLocaleDateString("en-US", {
         month: "long",
         year: "numeric",
       }),
-      tier: "Veyra Circle • Standard Tier",
-      membershipNumber: "VYR-PENDING",
-      preferredHubId: "",
-      preferredHubName: "Flagship Airport Terminal",
-      totalRentals: 0,
+      tier:
+        customer.membershipTier === "elite"
+          ? "Veyra Circle • Elite Tier"
+          : customer.membershipTier === "preferred"
+          ? "Veyra Circle • Preferred Tier"
+          : "Veyra Circle • Standard Tier",
+      membershipNumber: customer.membershipNumber || "VYR-M-ACTIVE",
+      preferredHubId: customer.preferredHubId || "",
+      preferredHubName: locName || "Flagship Airport Terminal",
+      totalRentals: customer.totalRentals || 0,
+      verificationStatus: customer.verificationStatus || "not_submitted",
     }
   } catch (err) {
     console.error("[customer-repository] unexpected error:", err)
-    return {
-      id: user.id,
-      firstName: user.firstName || "Member",
-      lastName: user.lastName || "",
-      email: user.emailAddresses[0]?.emailAddress || "",
-      phone: "",
-      memberSince: new Date(user.createdAt).toLocaleDateString("en-US", {
-        month: "long",
-        year: "numeric",
-      }),
-      tier: "Veyra Circle • Standard Tier",
-      membershipNumber: "VYR-MEMBER",
-      preferredHubId: "",
-      preferredHubName: "Flagship Airport Terminal",
-      totalRentals: 0,
-    }
+    return null
   }
 }
 
@@ -106,12 +256,22 @@ export async function getCustomerProfile(): Promise<CustomerProfile | null> {
  * Fetch the authenticated customer's documents from public.customer_documents.
  */
 export async function getCustomerDocuments(): Promise<CustomerDocument[]> {
-  const supabase = createClient()
+  const user = await currentUser()
+  if (!user) {
+    return []
+  }
 
   try {
+    const customer = await resolveOrCreateCustomerProfile(user)
+    if (!customer) {
+      return []
+    }
+
+    const supabase = createServiceClient()
     const { data, error } = await supabase
       .from("customer_documents")
       .select("id, type, original_filename, status, rejection_reason, expires_at, created_at, reviewed_at")
+      .eq("customer_id", customer.id)
       .order("created_at", { ascending: false })
 
     if (error || !data) {
@@ -181,13 +341,18 @@ export async function getCustomerKycStatus(): Promise<CustomerKycSummary> {
     }
   }
 
-  const supabase = createClient()
-
   try {
-    const { data: customer } = await supabase
-      .from("customers")
-      .select("id, verification_status")
-      .maybeSingle()
+    const customer = await resolveOrCreateCustomerProfile(user)
+    if (!customer) {
+      return {
+        status: "not_submitted",
+        statusLabel: "Status Check Unavailable",
+        hasDriverLicense: false,
+        hasGovernmentId: false,
+        requiredDocumentsUploaded: false,
+        documents: [],
+      }
+    }
 
     const documents = await getCustomerDocuments()
 
@@ -203,7 +368,7 @@ export async function getCustomerKycStatus(): Promise<CustomerKycSummary> {
     let status: KycVerificationStatus = "not_submitted"
     let statusLabel = "Not Submitted"
 
-    const rawStatus = customer?.verification_status
+    const rawStatus = customer.verificationStatus
 
     if (rawStatus === "verified" || hasDriverLicense) {
       status = "verified"
@@ -252,26 +417,37 @@ export async function getCustomerKycStatus(): Promise<CustomerKycSummary> {
  */
 export async function getCustomerDriverProfile(): Promise<DriverRentalProfile> {
   const profile = await getCustomerProfile()
-  const supabase = createClient()
+  const supabase = createServiceClient()
 
   let licenseMasked = "Unregistered"
   let verificationStatus: "verified" | "pending" | "needs_update" = "needs_update"
   let licenseCountry = "Philippines (LTO)"
 
   try {
-    // Check if customer has verified driver submission from reservation_drivers
-    const { data: drivers } = await supabase
-      .from("reservation_drivers")
-      .select("license_number, license_country")
-      .order("created_at", { ascending: false })
-      .limit(1)
+    if (profile?.id) {
+      // Find reservations for this customer
+      const { data: userRes } = await supabase
+        .from("reservations")
+        .select("id")
+        .eq("customer_id", profile.id)
 
-    if (drivers && drivers.length > 0 && drivers[0].license_number) {
-      const raw = drivers[0].license_number
-      licenseMasked = raw.length > 4 ? `***-**-${raw.slice(-4)}` : raw
-      verificationStatus = "verified"
-      if (drivers[0].license_country) {
-        licenseCountry = drivers[0].license_country === "PH" ? "Philippines (LTO)" : drivers[0].license_country
+      const resIds = userRes?.map((r) => r.id) || []
+      if (resIds.length > 0) {
+        const { data: drivers } = await supabase
+          .from("reservation_drivers")
+          .select("license_number, license_country")
+          .in("reservation_id", resIds)
+          .order("created_at", { ascending: false })
+          .limit(1)
+
+        if (drivers && drivers.length > 0 && drivers[0].license_number) {
+          const raw = drivers[0].license_number
+          licenseMasked = raw.length > 4 ? `***-**-${raw.slice(-4)}` : raw
+          verificationStatus = "verified"
+          if (drivers[0].license_country) {
+            licenseCountry = drivers[0].license_country === "PH" ? "Philippines (LTO)" : drivers[0].license_country
+          }
+        }
       }
     }
   } catch {
@@ -317,16 +493,11 @@ export async function getCustomerPayments(): Promise<CustomerPaymentRecord[]> {
   const user = await currentUser()
   if (!user) return []
 
-  const supabase = createClient()
-
   try {
-    const { data: customer } = await supabase
-      .from("customers")
-      .select("id")
-      .maybeSingle()
-
+    const customer = await resolveOrCreateCustomerProfile(user)
     if (!customer) return []
 
+    const supabase = createServiceClient()
     const { data, error } = await supabase
       .from("payments")
       .select("id, reservation_id, amount, currency, status, method, provider, provider_payment_id, provider_txn_ref, failure_reason, created_at, reservations(reference)")

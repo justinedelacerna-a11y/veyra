@@ -259,7 +259,22 @@ export async function createCheckoutSession(
   }
   const paymentMethodTypes = methodMap[paymentMethod] || ["card", "gcash", "paymaya"]
 
-  if (payMongoSecret && payMongoSecret.startsWith("sk_")) {
+  // Safeguard: Never process live payments in sandbox or non-production environment
+  if (payMongoSecret && payMongoSecret.startsWith("sk_live_") && process.env.ALLOW_LIVE_PAYMENTS !== "true") {
+    return {
+      success: false,
+      error: "provider_error",
+      message: "Live payment processing is disabled. Only sandbox test credentials (sk_test_) are permitted.",
+    }
+  }
+
+  const isMockOrEmulator =
+    !payMongoSecret ||
+    payMongoSecret.includes("mock") ||
+    payMongoSecret.includes("sandbox") ||
+    process.env.PAYMONGO_USE_EMULATOR === "true"
+
+  if (!isMockOrEmulator && payMongoSecret.startsWith("sk_")) {
     // Official PayMongo REST API Call
     try {
       const authHeader = `Basic ${Buffer.from(`${payMongoSecret}:`).toString("base64")}`

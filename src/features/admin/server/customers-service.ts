@@ -1,5 +1,5 @@
 import "server-only"
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
 import type { AdminCustomerRecord, AdminCustomerDocument } from "@/features/admin/types"
 
 interface RawCustomerRow {
@@ -93,7 +93,7 @@ export async function getAdminCustomersList(options?: {
   search?: string
   status?: string
 }): Promise<AdminCustomerRecord[]> {
-  const supabase = createClient()
+  const supabase = createServiceClient()
 
   const { data, error } = await supabase
     .from("customers")
@@ -165,7 +165,7 @@ export async function getAdminCustomerById(id: string): Promise<{
   }>
   documents: AdminCustomerDocument[]
 }> {
-  const supabase = createClient()
+  const supabase = createServiceClient()
 
   const { data, error } = await supabase
     .from("customers")

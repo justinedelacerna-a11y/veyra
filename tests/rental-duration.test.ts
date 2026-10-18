@@ -304,4 +304,123 @@ describe("Veyra Feature #2 — Configurable Rental Duration Test Suite", () => {
     )
     assert.equal(days, 3)
   })
+
+  // ─── 11. Customer changes duration from 1 to 3 days ──────────────────────
+  it("Customer changes duration from 1 to 3 days: return date and pricing synchronize", () => {
+    const pickupDate = "2026-10-20"
+    const initialDays = 1
+
+    const [y, m, d] = pickupDate.split("-").map(Number)
+    const target1 = new Date(Date.UTC(y, m - 1, d + initialDays))
+    assert.equal(target1.toISOString().split("T")[0], "2026-10-21")
+
+    // Customer changes duration to 3 days
+    const updatedDays = 3
+    const target3 = new Date(Date.UTC(y, m - 1, d + updatedDays))
+    const updatedReturnDate = target3.toISOString().split("T")[0]
+    assert.equal(updatedReturnDate, "2026-10-23")
+
+    // Base rental calculation with rate ₱1,750
+    const dailyRate = 1750
+    const initialBase = calculateBaseRental(dailyRate * 100, initialDays) / 100
+    const updatedBase = calculateBaseRental(dailyRate * 100, updatedDays) / 100
+    assert.equal(initialBase, 1750)
+    assert.equal(updatedBase, 5250)
+  })
+
+  // ─── 12. Customer changes duration from 3 to 5 days ──────────────────────
+  it("Customer changes duration from 3 to 5 days: base amount updates from ₱5,250 to ₱8,750", () => {
+    const pickupDate = "2026-10-20"
+    const dailyRate = 1750
+
+    const [y, m, d] = pickupDate.split("-").map(Number)
+    const target5 = new Date(Date.UTC(y, m - 1, d + 5))
+    const returnDate5 = target5.toISOString().split("T")[0]
+    assert.equal(returnDate5, "2026-10-25")
+
+    const base3 = calculateBaseRental(dailyRate * 100, 3) / 100
+    const base5 = calculateBaseRental(dailyRate * 100, 5) / 100
+    assert.equal(base3, 5250)
+    assert.equal(base5, 8750)
+  })
+
+  // ─── 13. Manually changing return date updates duration ──────────────────
+  it("Manually changing return date recalculates duration correctly", () => {
+    const pickupDate = "2026-10-20"
+    const pickupTime = "10:00"
+    const manualReturnDate = "2026-10-27"
+    const manualReturnTime = "10:00"
+
+    const days = calculateDurationDays(
+      new Date(`${pickupDate}T${pickupTime}:00Z`),
+      new Date(`${manualReturnDate}T${manualReturnTime}:00Z`)
+    )
+    assert.equal(days, 7)
+  })
+
+  // ─── 14. Invalid and reversed date ranges are rejected ───────────────────
+  it("Rejects reversed dates where return date is prior to or identical to pickup", () => {
+    const config = { minDays: 1, maxDays: 30 }
+    const reversed = validateRentalDuration(
+      new Date("2026-10-25T10:00:00Z"),
+      new Date("2026-10-20T10:00:00Z"),
+      config
+    )
+    assert.equal(reversed.isValid, false)
+    assert.equal(reversed.error, "invalid_dates")
+
+    const identical = validateRentalDuration(
+      new Date("2026-10-20T10:00:00Z"),
+      new Date("2026-10-20T10:00:00Z"),
+      config
+    )
+    assert.equal(identical.isValid, false)
+  })
+
+  // ─── 15. Extending rental detects vehicle availability collisions ─────────
+  it("Detects vehicle collision when customer extends duration into an existing booking", () => {
+    // Existing reserved slot: 2026-10-24 to 2026-10-26
+    const reservedBooking = {
+      pickupAt: new Date("2026-10-24T10:00:00Z").getTime(),
+      returnAt: new Date("2026-10-26T10:00:00Z").getTime(),
+    }
+
+    const checkCollision = (start: Date, end: Date) => {
+      const s = start.getTime()
+      const e = end.getTime()
+      return s < reservedBooking.returnAt && e > reservedBooking.pickupAt
+    }
+
+    // Customer originally booked 3 days: Oct 20 to Oct 23 -> No collision
+    const origEnd = new Date("2026-10-23T10:00:00Z")
+    assert.equal(checkCollision(new Date("2026-10-20T10:00:00Z"), origEnd), false)
+
+    // Customer extends to 5 days: Oct 20 to Oct 25 -> Collision on Oct 24-25!
+    const extendedEnd = new Date("2026-10-25T10:00:00Z")
+    assert.equal(checkCollision(new Date("2026-10-20T10:00:00Z"), extendedEnd), true)
+  })
+
+  // ─── 16. API requests cannot bypass duration limits ──────────────────────
+  it("Server validation prevents direct API calls from bypassing configured min/max", () => {
+    const config = { minDays: 2, maxDays: 14 }
+
+    // Direct API attempt with 1 day (below min 2)
+    const belowMin = validateRentalDuration(
+      new Date("2026-10-20T10:00:00Z"),
+      new Date("2026-10-21T10:00:00Z"),
+      config
+    )
+    assert.equal(belowMin.isValid, false)
+    assert.ok(belowMin.message?.includes("Minimum rental duration is 2 days"))
+
+    // Direct API attempt with 15 days (above max 14)
+    const aboveMax = validateRentalDuration(
+      new Date("2026-10-20T10:00:00Z"),
+      new Date("2026-11-04T10:00:00Z"),
+      config
+    )
+    assert.equal(aboveMax.isValid, false)
+    assert.ok(aboveMax.message?.includes("Maximum rental duration is 14 days"))
+  })
 })
+

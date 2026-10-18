@@ -997,7 +997,7 @@ export async function getAdminDocumentSignedUrlAction(
 ): Promise<ActionResult<{ signedUrl: string; originalFilename: string }>> {
   try {
     await requireAdminStaff()
-    const supabase = createClient()
+    const supabase = createServiceClient()
 
     const { data: doc, error: fetchErr } = await supabase
       .from("customer_documents")
@@ -1054,7 +1054,7 @@ export async function reviewCustomerDocumentAction(
       "superadmin",
     ])
 
-    const supabase = createClient()
+    const supabase = createServiceClient()
 
     // 1. Fetch document record
     const { data: doc, error: fetchErr } = await supabase

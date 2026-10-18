@@ -19,6 +19,7 @@ import {
   RiCalendarLine,
   RiTimeLine,
   RiAlertLine,
+  RiPriceTag3Line,
 } from "@remixicon/react"
 import { VehicleImage } from "@/components/ui/vehicle-image"
 import { PickupAddressPicker } from "../pickup-address-picker"
@@ -30,6 +31,11 @@ export function VehicleStep() {
     draft,
     updateDraft,
     rentalDays,
+    durationLimits,
+    durationError,
+    setRentalDuration,
+    pricing,
+    liveQuote,
     quoteError,
     quoteLoading,
   } = useBooking()
@@ -200,7 +206,7 @@ export function VehicleStep() {
           </div>
         </div>
 
-        {/* Rental Dates & Calculated Duration */}
+        {/* Rental Dates & Customer-Editable Duration */}
         <div className="space-y-3 pt-3 border-t border-border/60">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
@@ -208,12 +214,13 @@ export function VehicleStep() {
               <span>Rental Schedule & Duration</span>
             </h3>
             <span className="text-xs font-bold text-primary px-2.5 py-0.5 rounded-full bg-primary/10 border border-primary/20 self-start sm:self-auto">
-              Duration: {rentalDays} {rentalDays === 1 ? "Day" : "Days"}
+              Total Duration: {rentalDays} {rentalDays === 1 ? "Day" : "Days"}
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <div className="rounded-xl border bg-muted/30 p-3.5 space-y-1.5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {/* 1. Pickup Date & Time */}
+            <div className="rounded-xl border bg-muted/30 p-3 space-y-1.5">
               <label htmlFor="vehicle-step-pickup-date" className="text-xs font-semibold text-foreground flex items-center gap-1">
                 <RiCalendarLine className="size-3 text-primary" />
                 <span>Pickup Date & Time</span>
@@ -225,18 +232,77 @@ export function VehicleStep() {
                   value={draft.pickupDate}
                   min={new Date().toISOString().split("T")[0]}
                   onChange={(e) => updateDraft({ pickupDate: e.target.value })}
-                  className="col-span-3 h-10 rounded-lg border border-input bg-background/90 px-2.5 text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+                  className="col-span-3 h-10 rounded-lg border border-input bg-background/90 px-2 text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
                 />
                 <input
                   type="time"
                   value={draft.pickupTime}
                   onChange={(e) => updateDraft({ pickupTime: e.target.value })}
-                  className="col-span-2 h-10 rounded-lg border border-input bg-background/90 px-2 text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+                  className="col-span-2 h-10 rounded-lg border border-input bg-background/90 px-1.5 text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
                 />
               </div>
             </div>
 
-            <div className="rounded-xl border bg-muted/30 p-3.5 space-y-1.5">
+            {/* 2. Customer-Editable Rental Duration (Days) */}
+            <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label
+                  htmlFor="rental-duration-days-input"
+                  className="text-xs font-bold text-foreground flex items-center gap-1"
+                >
+                  <RiTimeLine className="size-3 text-primary" />
+                  <span>Rental Duration (Days)</span>
+                </label>
+                <span className="text-[10px] text-muted-foreground font-medium">
+                  Min: {durationLimits.minDays}d · Max: {durationLimits.maxDays ?? 30}d
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  id="duration-decrease-btn"
+                  onClick={() => setRentalDuration(Math.max(durationLimits.minDays, rentalDays - 1))}
+                  disabled={rentalDays <= durationLimits.minDays}
+                  className="size-10 rounded-lg border border-input bg-background font-bold text-sm text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center shrink-0 transition-colors"
+                  aria-label="Decrease rental days"
+                >
+                  −
+                </button>
+                <input
+                  id="rental-duration-days-input"
+                  type="number"
+                  min={durationLimits.minDays}
+                  max={durationLimits.maxDays ?? 30}
+                  value={rentalDays || ""}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10)
+                    if (!isNaN(val)) {
+                      setRentalDuration(val)
+                    }
+                  }}
+                  className="flex-1 h-10 text-center font-heading font-bold text-base rounded-lg border border-input bg-background text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+                <button
+                  type="button"
+                  id="duration-increase-btn"
+                  onClick={() =>
+                    setRentalDuration(
+                      durationLimits.maxDays !== null
+                        ? Math.min(durationLimits.maxDays, rentalDays + 1)
+                        : rentalDays + 1
+                    )
+                  }
+                  disabled={durationLimits.maxDays !== null && rentalDays >= durationLimits.maxDays}
+                  className="size-10 rounded-lg border border-input bg-background font-bold text-sm text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center shrink-0 transition-colors"
+                  aria-label="Increase rental days"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            {/* 3. Return Date & Time */}
+            <div className="rounded-xl border bg-muted/30 p-3 space-y-1.5">
               <label htmlFor="vehicle-step-return-date" className="text-xs font-semibold text-foreground flex items-center gap-1">
                 <RiTimeLine className="size-3 text-primary" />
                 <span>Return Date & Time</span>
@@ -248,26 +314,55 @@ export function VehicleStep() {
                   value={draft.returnDate}
                   min={draft.pickupDate}
                   onChange={(e) => updateDraft({ returnDate: e.target.value })}
-                  className="col-span-3 h-10 rounded-lg border border-input bg-background/90 px-2.5 text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+                  className="col-span-3 h-10 rounded-lg border border-input bg-background/90 px-2 text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
                 />
                 <input
                   type="time"
                   value={draft.returnTime}
                   onChange={(e) => updateDraft({ returnTime: e.target.value })}
-                  className="col-span-2 h-10 rounded-lg border border-input bg-background/90 px-2 text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+                  className="col-span-2 h-10 rounded-lg border border-input bg-background/90 px-1.5 text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
                 />
               </div>
             </div>
           </div>
 
+          {/* 4. Updated Rental Total Banner */}
+          <div className="rounded-xl bg-muted/40 border border-border/60 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <RiPriceTag3Line className="size-4 text-primary shrink-0" />
+              <div>
+                <span className="text-xs font-semibold text-foreground block">
+                  Updated Rental Total ({rentalDays} {rentalDays === 1 ? "day" : "days"})
+                </span>
+                <span className="text-[11px] text-muted-foreground block">
+                  Daily rate: ₱{vehicle.dailyRate.toLocaleString()} · Base: ₱{(vehicle.dailyRate * Math.max(1, rentalDays)).toLocaleString()}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              {quoteLoading ? (
+                <span className="text-xs text-muted-foreground animate-pulse">Calculating authoritative quote...</span>
+              ) : (
+                <div className="text-left sm:text-right">
+                  <span className="font-heading text-lg font-bold text-foreground block">
+                    ₱{pricing.totalRentalPrice.toLocaleString()}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground block">
+                    {liveQuote ? "Authoritative Server Quote" : "Estimated Total"}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Validation Feedback */}
-          {quoteError && (
+          {(durationError || quoteError) && (
             <div
               role="alert"
               className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive flex items-center gap-2"
             >
               <RiAlertLine className="size-4 shrink-0 text-destructive" />
-              <span className="font-medium">{quoteError}</span>
+              <span className="font-medium">{durationError || quoteError}</span>
             </div>
           )}
         </div>

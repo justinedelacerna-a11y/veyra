@@ -16,7 +16,48 @@ import {
   RiHome5Line,
   RiCarLine,
   RiShieldCheckLine,
+  RiRefreshLine,
 } from "@remixicon/react"
+import { cn } from "@/lib/utils"
+
+interface AuthoritativeReservation {
+  id: string
+  reference: string
+  status: string
+  paymentStatus: string
+  paymentMethod: string
+  totalAmountCentavos: number
+  depositAmountCentavos: number
+  currency: string
+  rentalDays: number
+  pickupAt: string
+  returnAt: string
+  pickupStreetAddress?: string | null
+  pickupLandmark?: string | null
+  pickupBarangay?: string | null
+  createdAt: string
+  vehicle?: {
+    id: string
+    make: string
+    model: string
+    year: number
+    category: string
+  } | null
+  pickupLocation?: { id: string; name: string; city: string } | null
+  returnLocation?: { id: string; name: string; city: string } | null
+  payment?: {
+    id: string
+    status: string
+    amountCentavos: number
+    currency: string
+    method: string
+    provider: string
+    providerTxnRef?: string | null
+    providerPaymentId?: string | null
+    updatedAt: string
+    failureReason?: string | null
+  } | null
+}
 
 export function ConfirmationView() {
   const searchParams = useSearchParams()
@@ -36,21 +77,99 @@ export function ConfirmationView() {
   const isFailed = searchParams.get("failed") === "true"
   const sessionId = searchParams.get("session_id")
 
+  // Authoritative server-loaded reservation & payment record
+  const [liveData, setLiveData] = React.useState<AuthoritativeReservation | null>(null)
+
+  const fetchAuthoritativeStatus = React.useCallback(() => {
+    if (!reference || reference.startsWith("VYR-DEMO")) {
+      return
+    }
+
+    fetch(`/api/reservations/lookup?ref=${encodeURIComponent(reference)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { success: boolean; reservation?: AuthoritativeReservation } | null) => {
+        if (data?.success && data?.reservation) {
+          setLiveData(data.reservation)
+        }
+      })
+      .catch((err) => {
+        console.warn("[confirmation-view] Could not load authoritative reservation:", err)
+      })
+  }, [reference])
+
+  React.useEffect(() => {
+    let active = true
+    if (!reference || reference.startsWith("VYR-DEMO")) {
+      return
+    }
+
+    fetch(`/api/reservations/lookup?ref=${encodeURIComponent(reference)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { success: boolean; reservation?: AuthoritativeReservation } | null) => {
+        if (active && data?.success && data?.reservation) {
+          setLiveData(data.reservation)
+        }
+      })
+      .catch((err) => {
+        console.warn("[confirmation-view] Could not load authoritative reservation:", err)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [reference])
+
+  // Derive authoritative states
+  const effectivePaymentStatus =
+    liveData?.paymentStatus ||
+    liveData?.payment?.status ||
+    (isCancelled || isFailed ? "failed" : "pending")
+
+  const effectiveMethod = liveData?.paymentMethod || draft.paymentMethod || "pay_at_pickup"
+
   const methodLabel =
-    draft.paymentMethod === "pay_at_pickup" || draft.paymentMethod === "counter"
+    effectiveMethod === "pay_at_pickup" || effectiveMethod === "counter"
       ? "Pay at Pickup (In-Person Settlement)"
-      : draft.paymentMethod === "gcash"
+      : effectiveMethod === "gcash"
       ? "GCash Mobile Wallet"
-      : draft.paymentMethod === "maya"
+      : effectiveMethod === "maya"
       ? "Maya Digital Wallet"
-      : draft.paymentMethod === "card"
+      : effectiveMethod === "card"
       ? "Credit / Debit Card"
       : "Pay at Pickup (In-Person Settlement)"
+
+  const isPaid = effectivePaymentStatus === "captured"
+  const isPaymentFailed = effectivePaymentStatus === "failed" || isCancelled || isFailed
+
+  const reservationStatusBadge =
+    liveData?.status === "confirmed"
+      ? { status: "success" as const, label: "Reservation Confirmed" }
+      : liveData?.status === "held"
+      ? { status: "info" as const, label: "Reservation Held" }
+      : liveData?.status === "payment_pending"
+      ? { status: "warning" as const, label: "Awaiting Settlement" }
+      : isPaid
+      ? { status: "success" as const, label: "Reservation Confirmed" }
+      : { status: "info" as const, label: "Reservation Active" }
+
+  const paymentStatusBadge = isPaid
+    ? { status: "success" as const, label: "Payment: Paid (Online)" }
+    : isPaymentFailed
+    ? { status: "error" as const, label: "Payment: Action Needed" }
+    : { status: "info" as const, label: "Payment: Pending Settlement" }
+
+  const displayRentalDays = liveData?.rentalDays || rentalDays
+  const displayTotal = liveData
+    ? Math.round(liveData.totalAmountCentavos / 100)
+    : pricing.totalRentalPrice
+  const displayDeposit = liveData
+    ? Math.round(liveData.depositAmountCentavos / 100)
+    : pricing.refundableSecurityDeposit
 
   return (
     <div className="max-w-3xl mx-auto space-y-8 py-6">
       {/* Cancellation / Failure Warning Notice if customer returned from failed checkout */}
-      {(isCancelled || isFailed) && (
+      {isPaymentFailed && (
         <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 space-y-3">
           <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-bold text-sm">
             <RiShieldCheckLine className="size-4 shrink-0" />
@@ -61,12 +180,21 @@ export function ConfirmationView() {
             <span className="font-mono font-semibold text-foreground">{reference}</span> is held.
             You can retry online payment or choose to settle in person upon vehicle handover.
           </p>
-          <div className="pt-1">
+          <div className="pt-1 flex items-center gap-3">
             <Link href={`/booking/payment?ref=${reference}`}>
               <Button size="sm" variant="default" className="text-xs gap-1.5 shadow-xs">
                 <span>Retry Payment Settlement</span>
               </Button>
             </Link>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={fetchAuthoritativeStatus}
+              className="text-xs gap-1.5"
+            >
+              <RiRefreshLine className="size-3.5" />
+              <span>Refresh Status</span>
+            </Button>
           </div>
         </div>
       )}
@@ -82,13 +210,13 @@ export function ConfirmationView() {
         <div className="space-y-2">
           <div className="flex flex-wrap items-center justify-center gap-2">
             <StatusBadge
-              status="success"
-              label="Reservation Confirmed"
+              status={reservationStatusBadge.status}
+              label={reservationStatusBadge.label}
               size="sm"
             />
             <StatusBadge
-              status={isCancelled || isFailed ? "warning" : "info"}
-              label={isCancelled || isFailed ? "Payment: Action Needed" : "Payment: Settlement Pending"}
+              status={paymentStatusBadge.status}
+              label={paymentStatusBadge.label}
               size="sm"
             />
           </div>
@@ -118,7 +246,7 @@ export function ConfirmationView() {
             Itinerary & Handover Details
           </h2>
           <span className="text-xs font-mono text-muted-foreground">
-            {rentalDays} {rentalDays === 1 ? "Day Rental" : "Days Rental"}
+            {displayRentalDays} {displayRentalDays === 1 ? "Day Rental" : "Days Rental"}
           </span>
         </div>
 
@@ -130,10 +258,12 @@ export function ConfirmationView() {
               <span>Assigned Vehicle</span>
             </div>
             <p className="font-heading text-base font-bold text-foreground">
-              {vehicle.year} {vehicle.make} {vehicle.model}
+              {liveData?.vehicle
+                ? `${liveData.vehicle.year} ${liveData.vehicle.make} ${liveData.vehicle.model}`
+                : `${vehicle.year} ${vehicle.make} ${vehicle.model}`}
             </p>
             <p className="text-muted-foreground">
-              {vehicle.category.toUpperCase()} • {vehicle.fuelType} • {vehicle.transmission}
+              {(liveData?.vehicle?.category || vehicle.category).toUpperCase()} • {vehicle.fuelType} • {vehicle.transmission}
             </p>
           </div>
 
@@ -146,58 +276,47 @@ export function ConfirmationView() {
             <p className="font-heading text-base font-bold text-foreground">
               {draft.driver.firstName
                 ? `${draft.driver.firstName} ${draft.driver.lastName}`
-                : "Maria Santos"}
+                : "Registered Driver"}
             </p>
-            <p className="text-muted-foreground truncate">
-              {draft.driver.email || "client@example.com"} •{" "}
-              {draft.driver.phone || "+63 917 123 4567"}
+            <p className="text-muted-foreground">
+              {draft.driver.phone || "Phone on file"} • {draft.driver.email || "Email on file"}
             </p>
           </div>
+        </div>
 
-          {/* Pickup */}
-          <div className="rounded-xl border bg-muted/30 p-4 space-y-1">
+        {/* Handover locations */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+          <div className="rounded-xl border bg-muted/30 p-4 space-y-2">
             <div className="flex items-center gap-2 text-foreground font-semibold">
               <RiMapPinLine className="size-4 text-primary" />
-              <span>Pickup & Handover</span>
+              <span>Pickup & Handover Location</span>
             </div>
             <p className="text-foreground font-medium">
-              {draft.pickupBarangay && !pickupLocationName.toLowerCase().includes(draft.pickupBarangay.toLowerCase())
-                ? `Barangay ${draft.pickupBarangay} (Dispatched via ${pickupLocationName})`
-                : pickupLocationName}
+              {liveData?.pickupLocation?.name || pickupLocationName}
             </p>
+            {liveData?.pickupStreetAddress && (
+              <p className="text-xs text-muted-foreground">
+                <span className="font-semibold text-foreground">Specific Address: </span>
+                {liveData.pickupStreetAddress}
+                {liveData.pickupLandmark ? ` (Near: ${liveData.pickupLandmark})` : ""}
+              </p>
+            )}
             <p className="text-muted-foreground">
               {draft.pickupDate} at {draft.pickupTime}
             </p>
-            {draft.pickupStreetAddress ? (
-              <div className="pt-1.5 mt-1 border-t border-border/40 text-[11px] space-y-0.5">
-                <span className="text-foreground font-medium block">
-                  Delivery Address: {draft.pickupStreetAddress}
-                </span>
-                {draft.pickupLandmark && (
-                  <span className="text-muted-foreground block">
-                    Landmark: {draft.pickupLandmark}
-                  </span>
-                )}
-                {draft.pickupContactPhone && (
-                  <span className="text-muted-foreground block">
-                    Contact: {draft.pickupContactPhone}
-                  </span>
-                )}
-              </div>
-            ) : (
-              <span className="text-[11px] text-primary font-medium block pt-1">
-                Valet Bay: Handover Station Arrival Zone
-              </span>
-            )}
+            <span className="text-[11px] text-muted-foreground block pt-1">
+              Valet agent stationed at arrival terminal
+            </span>
           </div>
 
-          {/* Return */}
-          <div className="rounded-xl border bg-muted/30 p-4 space-y-1">
+          <div className="rounded-xl border bg-muted/30 p-4 space-y-2">
             <div className="flex items-center gap-2 text-foreground font-semibold">
               <RiCalendarLine className="size-4 text-primary" />
-              <span>Scheduled Return</span>
+              <span>Return & Handover Location</span>
             </div>
-            <p className="text-foreground font-medium">{returnLocationName}</p>
+            <p className="text-foreground font-medium">
+              {liveData?.returnLocation?.name || returnLocationName}
+            </p>
             <p className="text-muted-foreground">
               {draft.returnDate} at {draft.returnTime}
             </p>
@@ -218,10 +337,32 @@ export function ConfirmationView() {
 
           <div className="flex justify-between items-center text-muted-foreground">
             <span>Payment Status:</span>
-            <span className="font-semibold text-amber-600 dark:text-amber-400">
-              {isCancelled || isFailed ? "Cancelled / Pending" : "Pending / Settle at Handover"}
+            <span
+              className={cn(
+                "font-semibold",
+                isPaid
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : isPaymentFailed
+                  ? "text-destructive"
+                  : "text-amber-600 dark:text-amber-400"
+              )}
+            >
+              {isPaid
+                ? "Paid & Settled via PayMongo ✅"
+                : isPaymentFailed
+                ? "Payment Failed / Action Needed"
+                : "Pending / Settle at Handover"}
             </span>
           </div>
+
+          {liveData?.payment?.providerTxnRef && (
+            <div className="flex justify-between items-center text-muted-foreground">
+              <span>Payment Transaction Reference:</span>
+              <span className="font-mono text-[11px] text-foreground font-semibold">
+                {liveData.payment.providerTxnRef}
+              </span>
+            </div>
+          )}
 
           {sessionId && (
             <div className="flex justify-between items-center text-muted-foreground">
@@ -235,15 +376,14 @@ export function ConfirmationView() {
           <div className="flex justify-between items-center text-muted-foreground">
             <span>Total Rental Amount:</span>
             <span className="font-heading text-sm font-bold text-foreground">
-              {pricing.currency}
-              {pricing.totalRentalPrice.toLocaleString()}
+              ₱{displayTotal.toLocaleString()}
             </span>
           </div>
 
           <div className="flex justify-between items-center text-muted-foreground">
             <span>Security Deposit:</span>
             <span className="font-mono font-medium text-foreground">
-              ₱{pricing.refundableSecurityDeposit.toLocaleString()} (Pre-authorized at Handover)
+              ₱{displayDeposit.toLocaleString()} (Pre-authorized at Handover)
             </span>
           </div>
         </div>

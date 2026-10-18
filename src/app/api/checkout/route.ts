@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@clerk/nextjs/server"
 import { createCheckoutSession } from "@/features/payment/server"
+import { checkRateLimit, RATE_LIMITS } from "@/lib/rate-limit"
 
 /**
  * POST /api/checkout
@@ -26,6 +27,24 @@ export async function POST(request: NextRequest) {
           message: "Authentication required to checkout.",
         },
         { status: 401 }
+      )
+    }
+
+    // Rate limit checkout attempts per customer
+    const rateLimit = checkRateLimit("checkout", clerkUserId, RATE_LIMITS.checkout)
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "rate_limited",
+          message: "Too many checkout requests. Please wait a moment before trying again.",
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(Math.ceil(rateLimit.retryAfterMs / 1000)),
+          },
+        }
       )
     }
 

@@ -10,7 +10,14 @@ import { PayMongoPaymentProvider } from "./providers/paymongo-provider"
 export function isPaymentGatewayConfigured(): boolean {
   const isEnabled = process.env.PAYMENTS_ENABLED === "true"
   const secretKey = process.env.PAYMONGO_SECRET_KEY
-  return isEnabled && Boolean(secretKey && secretKey.length > 5)
+  if (!isEnabled || !secretKey || secretKey.length <= 5) {
+    return false
+  }
+  // Safeguard: Never enable live payment gateway unless ALLOW_LIVE_PAYMENTS is explicitly true
+  if (secretKey.startsWith("sk_live_") && process.env.ALLOW_LIVE_PAYMENTS !== "true") {
+    return false
+  }
+  return true
 }
 
 /**

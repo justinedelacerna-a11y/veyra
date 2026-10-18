@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache"
 import { currentUser } from "@clerk/nextjs/server"
-import { createClient as createServiceClient } from "@supabase/supabase-js"
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
+import { resolveOrCreateCustomerProfile } from "./customer-repository"
 import { checkRateLimit, RATE_LIMITS } from "@/lib/rate-limit"
 import { logger, safeErrorMessage } from "@/lib/logger"
 import { recordAuditEvent } from "@/features/admin/server/audit-service"
@@ -32,10 +32,10 @@ export interface UploadDocumentResult {
  * 
  * Enforces:
  * - Authenticated Clerk session
- * - Customer DB record resolution
+ * - Safe customer identity resolution and idempotent provisioning
  * - Server-side MIME & size validation
- * - Unpredictable UUID-based storage path in private bucket
- * - Metadata persistence in public.customer_documents
+ * - Unpredictable UUID-based storage path in private customer-documents bucket
+ * - Metadata persistence in public.customer_documents with 'pending_review' status
  */
 export async function uploadCustomerDocumentAction(
   formData: FormData
@@ -87,14 +87,10 @@ export async function uploadCustomerDocumentAction(
       }
     }
 
-    // 3. Resolve customer ID
-    const userSupabase = createClient()
-    const { data: customer, error: custErr } = await userSupabase
-      .from("customers")
-      .select("id")
-      .maybeSingle()
+    // 3. Resolve or auto-provision customer profile safely using authenticated Clerk session
+    const customer = await resolveOrCreateCustomerProfile(user)
 
-    if (custErr || !customer) {
+    if (!customer) {
       return {
         success: false,
         message: "Customer profile not found. Please refresh and try again.",
@@ -102,12 +98,10 @@ export async function uploadCustomerDocumentAction(
       }
     }
 
-    // 4. Initialize privileged Supabase client for storage upload
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-    const adminSupabase = createServiceClient(supabaseUrl, serviceRoleKey)
+    // 4. Initialize Supabase service client for storage upload and private persistence
+    const adminSupabase = createServiceClient()
 
-    // 5. Generate secure storage path
+    // 5. Generate secure storage path in private bucket
     const extension = file.name.split(".").pop()?.toLowerCase() || "bin"
     const timestamp = Date.now()
     const uniqueId = crypto.randomUUID()

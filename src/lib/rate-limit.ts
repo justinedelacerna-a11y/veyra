@@ -33,7 +33,7 @@ const store = new Map<string, RateLimitEntry>()
 // Cleanup interval: remove expired entries every 5 minutes
 // to prevent unbounded memory growth on long-running instances.
 if (typeof setInterval !== "undefined") {
-  setInterval(() => {
+  const timer = setInterval(() => {
     const now = Date.now()
     for (const [key, entry] of store) {
       // Remove entries where all timestamps are older than 10 minutes
@@ -43,6 +43,9 @@ if (typeof setInterval !== "undefined") {
       }
     }
   }, 5 * 60 * 1000)
+  if (timer && typeof timer.unref === "function") {
+    timer.unref()
+  }
 }
 
 export interface RateLimitConfig {

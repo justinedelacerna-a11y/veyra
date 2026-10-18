@@ -322,6 +322,35 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  // --- Live Duration Limits state ---
+  const [durationLimits, setDurationLimits] = React.useState<{ minDays: number; maxDays: number | null }>({
+    minDays: 1,
+    maxDays: 30,
+  })
+  const [durationError, setDurationError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    let cancelled = false
+
+    fetch("/api/rental-duration")
+      .then((res) => res.json())
+      .then((data: { success: boolean; minDays?: number; maxDays?: number | null }) => {
+        if (!cancelled && data.success && typeof data.minDays === "number") {
+          setDurationLimits({
+            minDays: data.minDays,
+            maxDays: data.maxDays !== undefined ? data.maxDays : 30,
+          })
+        }
+      })
+      .catch((err) => {
+        console.error("[booking-context] error loading rental duration config:", err)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   // Resolve locations from live Supabase data
   const locations = liveLocations
 
@@ -410,6 +439,27 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     const pickupIso = `${draft.pickupDate}T${draft.pickupTime}:00Z`
     const returnIso = `${draft.returnDate}T${draft.returnTime}:00Z`
 
+    const pickupTimeMs = new Date(pickupIso).getTime()
+    const returnTimeMs = new Date(returnIso).getTime()
+
+    if (isNaN(pickupTimeMs) || isNaN(returnTimeMs) || returnTimeMs <= pickupTimeMs) {
+      queueMicrotask(() => {
+        if (!cancelled) {
+          setLiveQuote(null)
+          setQuoteError("Return date and time must be strictly after pickup date and time.")
+          setQuoteLoading(false)
+        }
+      })
+      return
+    }
+
+    // Invalidate stale quote immediately on date changes so old quotes are never submitted
+    queueMicrotask(() => {
+      if (!cancelled) {
+        setLiveQuote(null)
+      }
+    })
+
     fetch("/api/quote", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -429,11 +479,13 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
           setLiveQuote(data.quote)
           setQuoteError(null)
         } else {
+          setLiveQuote(null)
           setQuoteError(data.message || "Unable to calculate quote for selected dates.")
         }
       })
       .catch((err) => {
         if (!cancelled) {
+          setLiveQuote(null)
           setQuoteError(err instanceof Error ? err.message : "Failed to load live quote.")
         }
       })
@@ -486,30 +538,101 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
 
   // Calculate rental duration in whole days
   const rentalDays = React.useMemo(() => {
-    if (liveQuote) return liveQuote.rentalDays
     try {
-      const start = new Date(`${draft.pickupDate}T${draft.pickupTime}`)
-      const end = new Date(`${draft.returnDate}T${draft.returnTime}`)
+      const start = new Date(`${draft.pickupDate}T${draft.pickupTime}:00Z`)
+      const end = new Date(`${draft.returnDate}T${draft.returnTime}:00Z`)
       const diffMs = end.getTime() - start.getTime()
-      const days = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
-      return days > 0 ? days : 1
+      if (isNaN(diffMs) || diffMs <= 0) return 0
+      return Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)))
     } catch {
-      return 3
+      return 1
     }
-  }, [liveQuote, draft.pickupDate, draft.pickupTime, draft.returnDate, draft.returnTime])
+  }, [draft.pickupDate, draft.pickupTime, draft.returnDate, draft.returnTime])
 
   // Pricing: ALWAYS use live quote pricing when available!
   const pricing = React.useMemo(() => {
     if (liveQuote?.pricing) {
       return liveQuote.pricing
     }
-    return calculateBookingPricing(vehicle, rentalDays, draft.selectedExtras, liveExtras)
+    return calculateBookingPricing(vehicle, Math.max(1, rentalDays), draft.selectedExtras, liveExtras)
   }, [liveQuote, vehicle, rentalDays, draft.selectedExtras, liveExtras])
 
-  // Update draft helper
-  const updateDraft = React.useCallback((updates: Partial<BookingDraft>) => {
-    setDraft((prev) => ({ ...prev, ...updates }))
-  }, [])
+  // Explicit helper to allow customers to set rental duration in whole days
+  const setRentalDuration = React.useCallback(
+    (targetDays: number) => {
+      const days = Math.max(1, Math.round(targetDays))
+      if (days < durationLimits.minDays) {
+        setDurationError(
+          `Minimum rental duration is ${durationLimits.minDays} day${
+            durationLimits.minDays !== 1 ? "s" : ""
+          }.`
+        )
+      } else if (durationLimits.maxDays !== null && days > durationLimits.maxDays) {
+        setDurationError(`Maximum rental duration is ${durationLimits.maxDays} days.`)
+      } else {
+        setDurationError(null)
+      }
+
+      setDraft((prev) => {
+        const [year, month, day] = prev.pickupDate.split("-").map(Number)
+        const target = new Date(Date.UTC(year, month - 1, day + days))
+        const returnDate = target.toISOString().split("T")[0]
+        const returnTime = prev.returnTime || prev.pickupTime
+
+        return {
+          ...prev,
+          returnDate,
+          returnTime,
+        }
+      })
+    },
+    [durationLimits]
+  )
+
+  // Update draft helper with automatic duration and date synchronization
+  const updateDraft = React.useCallback(
+    (updates: Partial<BookingDraft>) => {
+      setDraft((prev) => {
+        const next = { ...prev, ...updates }
+
+        // If pickupDate changed and returnDate wasn't explicitly provided, preserve current duration
+        if (updates.pickupDate && !updates.returnDate) {
+          const prevStart = new Date(`${prev.pickupDate}T${prev.pickupTime}:00Z`).getTime()
+          const prevEnd = new Date(`${prev.returnDate}T${prev.returnTime}:00Z`).getTime()
+          const currentDays = Math.max(1, Math.ceil((prevEnd - prevStart) / (1000 * 60 * 60 * 24)))
+
+          const [y, m, d] = updates.pickupDate.split("-").map(Number)
+          const target = new Date(Date.UTC(y, m - 1, d + currentDays))
+          next.returnDate = target.toISOString().split("T")[0]
+        }
+
+        // Validate date boundaries whenever dates or times change
+        if (updates.returnDate || updates.returnTime || updates.pickupDate || updates.pickupTime) {
+          const start = new Date(`${next.pickupDate}T${next.pickupTime}:00Z`).getTime()
+          const end = new Date(`${next.returnDate}T${next.returnTime}:00Z`).getTime()
+          if (isNaN(start) || isNaN(end) || end <= start) {
+            setDurationError("Return date and time must be strictly after pickup date and time.")
+          } else {
+            const days = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)))
+            if (days < durationLimits.minDays) {
+              setDurationError(
+                `Minimum rental duration is ${durationLimits.minDays} day${
+                  durationLimits.minDays !== 1 ? "s" : ""
+                }.`
+              )
+            } else if (durationLimits.maxDays !== null && days > durationLimits.maxDays) {
+              setDurationError(`Maximum rental duration is ${durationLimits.maxDays} days.`)
+            } else {
+              setDurationError(null)
+            }
+          }
+        }
+
+        return next
+      })
+    },
+    [durationLimits]
+  )
 
   // Toggle extras
   const toggleExtra = React.useCallback((extraId: string) => {
@@ -631,7 +754,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
 
       // For online payment methods (Card, GCash, Maya, E-Wallet), create checkout session
       const isOnlineMethod =
-        draft.paymentMethod !== "counter" && draft.paymentMethod !== "pay_at_pickup"
+        effectiveDraft.paymentMethod !== "counter" && effectiveDraft.paymentMethod !== "pay_at_pickup"
 
       if (isOnlineMethod) {
         try {
@@ -640,7 +763,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               reservationId,
-              paymentMethod: draft.paymentMethod,
+              paymentMethod: effectiveDraft.paymentMethod,
             }),
           })
           const checkoutData = await checkoutRes.json()
@@ -649,6 +772,8 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
               window.location.href = checkoutData.checkoutUrl
               return reference
             }
+          } else if (!checkoutData.success && checkoutData.message) {
+            console.warn("[booking-context] Checkout session creation warning:", checkoutData.message)
           }
         } catch (err) {
           console.error("[booking-context] Checkout session creation failed:", err)
@@ -702,6 +827,9 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     quoteLoading,
     quoteError,
     availableExtras: liveExtras,
+    durationLimits,
+    durationError,
+    setRentalDuration,
     updateDraft,
     toggleExtra,
     updateDriver,

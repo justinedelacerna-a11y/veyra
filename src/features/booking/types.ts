@@ -149,6 +149,9 @@ export interface BookingContextValue {
   quoteLoading: boolean
   quoteError: string | null
   availableExtras: ExtraOption[]
+  durationLimits: { minDays: number; maxDays: number | null }
+  durationError: string | null
+  setRentalDuration: (days: number) => void
   updateDraft: (updates: Partial<BookingDraft>) => void
   toggleExtra: (extraId: string) => void
   updateDriver: (field: keyof DriverDetails, value: string) => void
